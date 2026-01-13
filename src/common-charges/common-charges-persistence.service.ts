@@ -377,7 +377,7 @@ export class CommonChargesPersistenceService {
             id: true,
             number: true,
             floor: true,
-            sharePercentage: true,
+            shareCommon: true,
             owner: {
               select: {
                 firstName: true,
@@ -399,7 +399,7 @@ export class CommonChargesPersistenceService {
       apartmentId: line.apartmentId,
       apartmentNumber: line.apartment.number,
       floor: line.apartment.floor,
-      sharePercentage: line.apartment.sharePercentage,
+      sharePercentage: line.apartment.shareCommon,
       chargeAmount: Number(line.baseCharge),
       owner: line.apartment.owner,
     }));

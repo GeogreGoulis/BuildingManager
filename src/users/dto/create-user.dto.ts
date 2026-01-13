@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsBoolean, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsBoolean, MinLength, IsEnum } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -25,4 +25,12 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  role?: string; // SUPER_ADMIN, BUILDING_ADMIN, READ_ONLY
+
+  @IsString()
+  @IsOptional()
+  buildingId?: string; // Required for BUILDING_ADMIN and READ_ONLY roles
 }

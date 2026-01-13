@@ -151,18 +151,24 @@ model Building {
 }
 
 model Apartment {
-  id              String    @id @default(uuid())
-  buildingId      String
-  number          String // π.χ. "1A", "2B"
-  floor           Int
-  squareMeters    Decimal   @db.Decimal(10, 2)
-  sharePercentage Decimal   @db.Decimal(5, 4) // π.χ. 12.5000 = 12.5%
-  ownerId         String?
-  isOccupied      Boolean   @default(true)
-  hasHeating      Boolean   @default(true) // Συμμετέχει στη θέρμανση
-  deletedAt       DateTime? // Soft delete
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  buildingId            String
+  number                String // π.χ. "1A", "2B"
+  floor                 Int
+  squareMeters          Decimal   @db.Decimal(10, 2)
+  // Χιλιοστά συμμετοχής ανά κατηγορία εξόδων (0-100%)
+  shareCommon           Decimal   @db.Decimal(6, 2) @default(0) // Κοινόχρηστα
+  shareElevator         Decimal   @db.Decimal(6, 2) @default(0) // Ανελκυστήρας
+  shareHeating          Decimal   @db.Decimal(6, 2) @default(0) // Θέρμανση
+  shareSpecial          Decimal   @db.Decimal(6, 2) @default(0) // Ειδικά έξοδα
+  shareOwner            Decimal   @db.Decimal(6, 2) @default(0) // Έξοδα ιδιοκτητών
+  shareOther            Decimal   @db.Decimal(6, 2) @default(0) // Λοιπά έξοδα
+  ownerId               String?
+  isOccupied            Boolean   @default(true)
+  hasHeating            Boolean   @default(true) // Συμμετέχει στη θέρμανση
+  deletedAt             DateTime? // Soft delete
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   building          Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   owner             User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)

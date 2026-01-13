@@ -180,32 +180,18 @@ export class BuildingsService {
       }
     }
 
-    // Validate total share percentage doesn't exceed 100%
-    const totalShares = await this.prisma.apartment.aggregate({
-      where: {
-        buildingId: createApartmentDto.buildingId,
-      },
-      _sum: {
-        sharePercentage: true,
-      },
-    });
-
-    const currentTotal = Number(totalShares._sum.sharePercentage || 0);
-    const newTotal = currentTotal + createApartmentDto.sharePercentage;
-
-    if (newTotal > 100) {
-      throw new BadRequestException(
-        `Total share percentage would exceed 100%. Current: ${currentTotal}%, Trying to add: ${createApartmentDto.sharePercentage}%`,
-      );
-    }
-
     const apartment = await this.prisma.apartment.create({
       data: {
         buildingId: createApartmentDto.buildingId,
         number: createApartmentDto.number,
         floor: createApartmentDto.floor,
         squareMeters: createApartmentDto.squareMeters,
-        sharePercentage: createApartmentDto.sharePercentage,
+        shareCommon: createApartmentDto.shareCommon ?? 0,
+        shareElevator: createApartmentDto.shareElevator ?? 0,
+        shareHeating: createApartmentDto.shareHeating ?? 0,
+        shareSpecial: createApartmentDto.shareSpecial ?? 0,
+        shareOwner: createApartmentDto.shareOwner ?? 0,
+        shareOther: createApartmentDto.shareOther ?? 0,
         ownerId: createApartmentDto.ownerId,
         isOccupied: createApartmentDto.isOccupied ?? true,
         hasHeating: createApartmentDto.hasHeating ?? true,
@@ -313,28 +299,6 @@ export class BuildingsService {
 
     if (!apartment) {
       throw new NotFoundException('Apartment not found');
-    }
-
-    // Validate share percentage if being updated
-    if (updateApartmentDto.sharePercentage !== undefined) {
-      const totalShares = await this.prisma.apartment.aggregate({
-        where: {
-          buildingId: apartment.buildingId,
-          id: { not: id },
-        },
-        _sum: {
-          sharePercentage: true,
-        },
-      });
-
-      const currentTotal = Number(totalShares._sum.sharePercentage || 0);
-      const newTotal = currentTotal + updateApartmentDto.sharePercentage;
-
-      if (newTotal > 100) {
-        throw new BadRequestException(
-          `Total share percentage would exceed 100%. Current (excluding this apartment): ${currentTotal}%`,
-        );
-      }
     }
 
     const updatedApartment = await this.prisma.apartment.update({

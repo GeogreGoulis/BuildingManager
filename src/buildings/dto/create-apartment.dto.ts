@@ -27,11 +27,42 @@ export class CreateApartmentDto {
   @Min(0)
   squareMeters: number;
 
+  // Χιλιοστά συμμετοχής ανά κατηγορία (0-100%)
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   @Min(0)
   @Max(100)
-  sharePercentage: number;
+  shareCommon?: number; // Κοινόχρηστα
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  shareElevator?: number; // Ανελκυστήρας
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  shareHeating?: number; // Θέρμανση
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  shareSpecial?: number; // Ειδικά έξοδα
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  shareOwner?: number; // Έξοδα ιδιοκτητών
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  shareOther?: number; // Λοιπά έξοδα
 
   @IsString()
   @IsOptional()

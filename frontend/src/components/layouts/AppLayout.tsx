@@ -13,14 +13,16 @@ export const AppLayout: React.FC = () => {
   };
 
   const canWrite = hasRole([UserRole.SUPER_ADMIN, UserRole.BUILDING_ADMIN]);
+  const isSuperAdmin = hasRole([UserRole.SUPER_ADMIN]);
 
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Έξοδα', path: '/expenses', icon: '💰' },
     { name: 'Κοινόχρηστα', path: '/common-charges', icon: '🧾' },
-    { name: 'Πληρωμές', path: '/payments', icon: '💳', hidden: !canWrite },
+    { name: 'Πληρωμές', path: '/payments', icon: '💳' },
     { name: 'Έγγραφα', path: '/documents', icon: '📄' },
     { name: 'Ανακοινώσεις', path: '/announcements', icon: '📢' },
+    { name: 'Ρυθμίσεις', path: '/configuration', icon: '⚙️', hidden: !isSuperAdmin },
   ].filter(item => !item.hidden);
 
   return (

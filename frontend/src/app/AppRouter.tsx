@@ -13,6 +13,10 @@ import { LoginPage } from '../pages/auth/LoginPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ExpensesPage } from '../pages/expenses/ExpensesPage';
 import { CommonChargesPage } from '../pages/common-charges/CommonChargesPage';
+import { PaymentsPage } from '../pages/payments/PaymentsPage';
+import { DocumentsPage } from '../pages/documents/DocumentsPage';
+import { AnnouncementsPage } from '../pages/announcements/AnnouncementsPage';
+import { ConfigurationPage } from '../pages/configuration/ConfigurationPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +52,14 @@ export const AppRouter: React.FC = () => {
               <Route path="/expenses" element={<ExpensesPage />} />
               
               <Route path="/common-charges" element={<CommonChargesPage />} />
+
+              <Route path="/payments" element={<PaymentsPage />} />
+
+              <Route path="/documents" element={<DocumentsPage />} />
+
+              <Route path="/announcements" element={<AnnouncementsPage />} />
+
+              <Route path="/configuration" element={<ConfigurationPage />} />
               
               {/* Default redirect */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />

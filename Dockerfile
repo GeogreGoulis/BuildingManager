@@ -1,6 +1,6 @@
 FROM node:20-slim AS development
 
-# Install system dependencies including OpenSSL and Puppeteer requirements
+# Install system dependencies including OpenSSL, Puppeteer requirements, and build tools for native modules
 RUN apt-get update && apt-get install -y \
     openssl \
     libssl3 \
@@ -22,11 +22,17 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    make \
+    g++ \
+    python3 \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Puppeteer to use installed Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Fix for SSL certificate issues with Prisma binary downloads
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 WORKDIR /usr/src/app
 
@@ -42,7 +48,7 @@ RUN npm run build
 
 FROM node:20-slim AS production
 
-# Install system dependencies including OpenSSL and Puppeteer requirements for production
+# Install system dependencies including OpenSSL, Puppeteer requirements, and build tools for native modules
 RUN apt-get update && apt-get install -y \
     openssl \
     libssl3 \
@@ -64,11 +70,17 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    make \
+    g++ \
+    python3 \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Puppeteer to use installed Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Fix for SSL certificate issues with Prisma binary downloads
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}

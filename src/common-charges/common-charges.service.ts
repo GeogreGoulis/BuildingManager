@@ -117,8 +117,8 @@ export class CommonChargesService {
         id: apt.id,
         number: apt.number,
         floor: String(apt.floor),
-        sharePercentage: Number(apt.sharePercentage),
-        heatingSharePercentage: Number(apt.sharePercentage) * 0.5, // TODO: Add heatingSharePercentage field to schema
+        sharePercentage: Number(apt.shareCommon),
+        heatingSharePercentage: Number(apt.shareHeating),
         isOccupied: apt.isOccupied,
         isExcluded: false, // TODO: Track exclusions
       })),

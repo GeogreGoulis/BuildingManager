@@ -46,6 +46,23 @@ export class UsersService {
       },
     });
 
+    // If role is provided, assign it to the user
+    if (createUserDto.role) {
+      const role = await this.prisma.role.findUnique({
+        where: { name: createUserDto.role as any },
+      });
+
+      if (role) {
+        await this.prisma.userRole.create({
+          data: {
+            userId: user.id,
+            roleId: role.id,
+            buildingId: createUserDto.role === 'SUPER_ADMIN' ? null : createUserDto.buildingId || null,
+          },
+        });
+      }
+    }
+
     // Audit log
     await this.prisma.auditLog.create({
       data: {

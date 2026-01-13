@@ -27,7 +27,6 @@ const SOFT_DELETE_MODELS: string[] = [
   'Expense',
   'OilDelivery',
   'OilMeasurement',
-  'CommonChargePeriod',
   'Payment',
   'Document',
   'Event',

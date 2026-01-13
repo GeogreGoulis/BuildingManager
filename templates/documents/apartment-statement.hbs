@@ -1,0 +1,148 @@
+<!-- APARTMENT STATEMENT DOCUMENT -->
+
+<!-- Apartment Info Header -->
+<div class="border-box mb-medium">
+  <h2>Στοιχεία Διαμερίσματος</h2>
+  <div class="summary-grid">
+    <div class="summary-item">
+      <span class="summary-label">Αριθμός:</span>
+      <span class="summary-value">{{apartment.number}}</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Όροφος:</span>
+      <span class="summary-value">{{apartment.floor}}</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Ποσοστό Συμμετοχής:</span>
+      <span class="summary-value">{{formatPercentage apartment.sharePercentage}}</span>
+    </div>
+    {{#if apartment.owner}}
+    <div class="summary-item">
+      <span class="summary-label">Ιδιοκτήτης:</span>
+      <span class="summary-value">{{apartment.owner.name}}</span>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<!-- Charges Breakdown -->
+<h2>Ανάλυση Χρεώσεων</h2>
+
+<table class="charges-breakdown-table">
+  <thead>
+    <tr>
+      <th class="align-left">Κατηγορία Εξόδου</th>
+      <th class="align-right">Συν. Κόστος (€)</th>
+      <th class="align-center">Ποσοστό</th>
+      <th class="align-right">Χρέωση (€)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each chargesBreakdown}}
+    <tr>
+      <td class="align-left">{{this.category}}</td>
+      <td class="numeric currency">{{formatCurrency this.totalCost}}</td>
+      <td class="align-center">{{formatPercentage this.percentage}}</td>
+      <td class="numeric currency">{{formatCurrency this.charge}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td class="align-right" colspan="3"><strong>ΣΥΝΟΛΟ ΧΡΕΩΣΗΣ:</strong></td>
+      <td class="numeric currency">{{formatCurrency totalCharge}}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- Payment History -->
+{{#if payments}}
+<h2 class="mt-large">Ιστορικό Πληρωμών</h2>
+
+<table class="payment-history-table">
+  <thead>
+    <tr>
+      <th class="align-left">Ημερομηνία</th>
+      <th class="align-left">Τρόπος Πληρωμής</th>
+      <th class="align-left">Αναφορά</th>
+      <th class="align-right">Ποσό (€)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each payments}}
+    <tr>
+      <td class="align-left">{{this.date}}</td>
+      <td class="align-left">{{this.method}}</td>
+      <td class="align-left">{{this.reference}}</td>
+      <td class="numeric currency">{{formatCurrency this.amount}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  <tfoot>
+    <tr class="subtotal-row">
+      <td colspan="3" class="align-right"><strong>Σύνολο Πληρωμών:</strong></td>
+      <td class="numeric currency">{{formatCurrency totalPayments}}</td>
+    </tr>
+  </tfoot>
+</table>
+{{/if}}
+
+<!-- Balance Summary -->
+<div class="summary-box mt-large {{#if isOverdue}}highlight{{/if}}">
+  <h3>Οικονομική Κατάσταση</h3>
+  <div class="summary-item">
+    <span class="summary-label">Χρέωση Περιόδου:</span>
+    <span class="summary-value currency">{{formatCurrency totalCharge}}</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Πληρωμές Περιόδου:</span>
+    <span class="summary-value currency">{{formatCurrency totalPayments}}</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Προηγούμενο Υπόλοιπο:</span>
+    <span class="summary-value currency {{#if previousBalance.isNegative}}negative{{/if}}">
+      {{formatCurrency previousBalance.amount}}
+    </span>
+  </div>
+  <div class="summary-total">
+    <div class="summary-item">
+      <span class="summary-label">ΤΕΛΙΚΟ ΥΠΟΛΟΙΠΟ:</span>
+      <span class="summary-value currency {{#if finalBalance.isNegative}}negative{{else}}positive{{/if}}">
+        {{formatCurrency finalBalance.amount}}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Instructions (if balance is negative) -->
+{{#if finalBalance.isNegative}}
+<div class="notes-section mt-medium">
+  <h4>Οδηγίες Πληρωμής</h4>
+  <p>
+    Παρακαλούμε να προβείτε στην εξόφληση του ποσού των 
+    <strong>{{formatCurrency finalBalance.amount}} €</strong> 
+    μέχρι την {{paymentDueDate}}.
+  </p>
+  {{#if bankAccount}}
+  <p class="mt-small">
+    <strong>Τραπεζικός Λογαριασμός:</strong> {{bankAccount.iban}}<br>
+    <strong>Δικαιούχος:</strong> {{bankAccount.beneficiary}}<br>
+    <strong>Αιτιολογία:</strong> Κοινόχρηστα {{period.month}}/{{period.year}} - Διαμ. {{apartment.number}}
+  </p>
+  {{/if}}
+</div>
+{{/if}}
+
+<!-- Notes -->
+{{#if notes}}
+<div class="notes-section mt-large">
+  <h4>Παρατηρήσεις</h4>
+  <p>{{notes}}</p>
+</div>
+{{/if}}
+
+<!-- Signatures -->
+{{> signatures 
+  date=generatedDate
+  showOwner=true
+}}

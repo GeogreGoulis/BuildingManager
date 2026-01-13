@@ -1,0 +1,513 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum RoleType {
+  SUPER_ADMIN
+  BUILDING_ADMIN
+  READ_ONLY
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  ONLINE
+}
+
+enum DocumentCategory {
+  INVOICE
+  CONTRACT
+  REPORT
+  PHOTO
+  OTHER
+}
+
+enum EventType {
+  MEETING
+  MAINTENANCE
+  INSPECTION
+  ASSEMBLY
+  OTHER
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOCK
+  UNLOCK
+  APPROVE
+  REJECT
+}
+
+// ==================== USERS & AUTHENTICATION ====================
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? // Soft delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  userRoles UserRole[]
+  apartments Apartment[]
+  payments Payment[]
+  comments Comment[]
+  auditLogs AuditLog[]
+  reminders Reminder[]
+  
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        RoleType  @unique
+  description String?
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id         String    @id @default(uuid())
+  userId     String
+  roleId     String
+  buildingId String? // null = global role (SUPER_ADMIN), otherwise building-scoped
+  deletedAt  DateTime? // Soft delete
+  createdAt  DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  building Building? @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, buildingId])
+  @@index([userId])
+  @@index([buildingId])
+  @@index([deletedAt])
+  @@map("user_roles")
+}
+
+// ==================== BUILDINGS & APARTMENTS ====================
+
+model Building {
+  id               String    @id @default(uuid())
+  name             String
+  address          String
+  city             String
+  postalCode       String
+  taxId            String? // ΑΦΜ πολυκατοικίας
+  constructionYear Int?
+  floors           Int?
+  apartmentCount   Int
+  isActive         Boolean   @default(true)
+  deletedAt        DateTime? // Soft delete
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  apartments          Apartment[]
+  userRoles           UserRole[]
+  expenses            Expense[]
+  oilDeliveries       OilDelivery[]
+  commonChargePeriods CommonChargePeriod[]
+  documents           Document[]
+  events              Event[]
+  announcements       Announcement[]
+
+  @@index([city])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("buildings")
+}
+
+model Apartment {
+  id              String    @id @default(uuid())
+  buildingId      String
+  number          String // π.χ. "1A", "2B"
+  floor           Int
+  squareMeters    Decimal   @db.Decimal(10, 2)
+  sharePercentage Decimal   @db.Decimal(5, 4) // π.χ. 12.5000 = 12.5%
+  ownerId         String?
+  isOccupied      Boolean   @default(true)
+  hasHeating      Boolean   @default(true) // Συμμετέχει στη θέρμανση
+  deletedAt       DateTime? // Soft delete
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  building          Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  owner             User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  oilMeasurements   OilMeasurement[]
+  commonChargeLines CommonChargeLine[]
+  payments          Payment[]
+
+  @@unique([buildingId, number])
+  @@index([buildingId])
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@map("apartments")
+}
+
+// ==================== EXPENSES ====================
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expenses Expense[]
+
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("expense_categories")
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  taxId     String? // ΑΦΜ προμηθευτή
+  phone     String?
+  email     String?
+  address   String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? // Soft delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  expenses      Expense[]
+  oilDeliveries OilDelivery[]
+
+  @@index([taxId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("suppliers")
+}
+
+model Expense {
+  id              String         @id @default(uuid())
+  buildingId      String
+  categoryId      String
+  supplierId      String?
+  amount          Decimal        @db.Decimal(10, 2)
+  description     String
+  expenseDate     DateTime
+  invoiceNumber   String?
+  isPaid          Boolean        @default(false)
+  paidDate        DateTime?
+  paymentMethod   PaymentMethod?
+  notes           String?
+  periodId        String? // Σύνδεση με περίοδο κοινοχρήστων
+  deletedAt       DateTime? // Soft delete
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  building Building            @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  category ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  supplier Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  period   CommonChargePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  documents Document[]
+
+  @@index([buildingId])
+  @@index([categoryId])
+  @@index([expenseDate])
+  @@index([isPaid])
+  @@index([deletedAt])
+  @@index([buildingId, expenseDate]) // Composite for queries
+  @@map("expenses")
+}
+
+// ==================== OIL MANAGEMENT ====================
+
+model OilDelivery {
+  id              String    @id @default(uuid())
+  buildingId      String
+  supplierId      String?
+  liters          Decimal   @db.Decimal(10, 2)
+  pricePerLiter   Decimal   @db.Decimal(6, 3)
+  totalCost       Decimal   @db.Decimal(10, 2)
+  deliveryDate    DateTime
+  invoiceNumber   String?
+  notes           String?
+  deletedAt       DateTime? // Soft delete
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  building  Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  supplier  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  documents Document[]
+
+  @@index([buildingId])
+  @@index([deliveryDate])
+  @@index([deletedAt])
+  @@index([buildingId, deliveryDate]) // Composite for queries
+  @@map("oil_deliveries")
+}
+
+model OilMeasurement {
+  id              String   @id @default(uuid())
+  apartmentId     String
+  litersUsed      Decimal  @db.Decimal(10, 2)
+  measurementDate DateTime
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  @@index([apartmentId])
+  @@index([measurementDate])
+  @@index([apartmentId, measurementDate]) // Composite for queries
+  @@map("oil_measurements")
+}
+
+// ==================== COMMON CHARGES ====================
+
+model CommonChargePeriod {
+  id          String    @id @default(uuid())
+  buildingId  String
+  name        String // π.χ. "Ιανουάριος 2026"
+  startDate   DateTime
+  endDate     DateTime
+  dueDate     DateTime
+  isLocked    Boolean   @default(false) // Κλειδωμένη περίοδος δεν επεξεργάζεται
+  lockedAt    DateTime?
+  lockedBy    String?
+  version     Int       @default(1) // Versioning για αλλαγές
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  building Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  lines    CommonChargeLine[]
+  expenses Expense[]
+
+  @@unique([buildingId, name])
+  @@index([buildingId])
+  @@index([startDate, endDate])
+  @@index([isLocked])
+  @@index([buildingId, startDate]) // Composite for queries
+  @@map("common_charge_periods")
+}
+
+model CommonChargeLine {
+  id          String    @id @default(uuid())
+  periodId    String
+  apartmentId String
+  baseCharge  Decimal   @db.Decimal(10, 2) // Βασικά κοινόχρηστα (βάσει ποσοστού)
+  oilCharge   Decimal   @db.Decimal(10, 2) @default(0) // Πετρέλαιο
+  waterCharge Decimal   @db.Decimal(10, 2) @default(0) // Νερό
+  otherCharge Decimal   @db.Decimal(10, 2) @default(0) // Άλλα
+  totalCharge Decimal   @db.Decimal(10, 2) // Σύνολο
+  isPaid      Boolean   @default(false)
+  paidDate    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  period    CommonChargePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  apartment Apartment          @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, apartmentId])
+  @@index([periodId])
+  @@index([apartmentId])
+  @@index([isPaid])
+  @@map("common_charge_lines")
+}
+
+// ==================== PAYMENTS ====================
+
+model Payment {
+  id            String        @id @default(uuid())
+  apartmentId   String
+  userId        String?
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentDate   DateTime
+  paymentMethod PaymentMethod
+  reference     String? // Αριθμός επιταγής, transaction ID κτλ
+  notes         String?
+  deletedAt     DateTime? // Soft delete
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  apartment Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([apartmentId])
+  @@index([paymentDate])
+  @@index([deletedAt])
+  @@index([apartmentId, paymentDate]) // Composite for queries
+  @@map("payments")
+}
+
+// ==================== DOCUMENTS ====================
+
+model Document {
+  id            String           @id @default(uuid())
+  buildingId    String
+  name          String
+  filename      String
+  mimeType      String
+  size          Int
+  path          String
+  category      DocumentCategory
+  expenseId     String?
+  oilDeliveryId String?
+  uploadedBy    String?
+  deletedAt     DateTime? // Soft delete
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  building    Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  expense     Expense?     @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  oilDelivery OilDelivery? @relation(fields: [oilDeliveryId], references: [id], onDelete: SetNull)
+
+  @@index([buildingId])
+  @@index([category])
+  @@index([expenseId])
+  @@index([oilDeliveryId])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+// ==================== CALENDAR & REMINDERS ====================
+
+model Event {
+  id          String    @id @default(uuid())
+  buildingId  String
+  title       String
+  description String?
+  eventDate   DateTime
+  eventType   EventType
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@index([buildingId])
+  @@index([eventDate])
+  @@index([deletedAt])
+  @@index([buildingId, eventDate]) // Composite for queries
+  @@map("events")
+}
+
+model Reminder {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  dueDate     DateTime
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dueDate])
+  @@index([isCompleted])
+  @@index([deletedAt])
+  @@index([userId, isCompleted]) // Composite for queries
+  @@map("reminders")
+}
+
+// ==================== ANNOUNCEMENTS ====================
+
+model Announcement {
+  id         String               @id @default(uuid())
+  buildingId String
+  title      String
+  content    String
+  priority   AnnouncementPriority @default(NORMAL)
+  isActive   Boolean              @default(true)
+  deletedAt  DateTime? // Soft delete
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([buildingId])
+  @@index([isActive])
+  @@index([priority])
+  @@index([deletedAt])
+  @@index([buildingId, isActive]) // Composite for queries
+  @@map("announcements")
+}
+
+model Comment {
+  id             String    @id @default(uuid())
+  announcementId String
+  userId         String
+  content        String
+  deletedAt      DateTime? // Soft delete
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("comments")
+}
+
+// ==================== AUDIT LOG ====================
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String?
+  action    AuditAction
+  entity    String // User, Expense, Building, etc.
+  entityId  String?
+  oldValue  Json? // Previous state (for UPDATE/DELETE)
+  newValue  Json? // New state (for CREATE/UPDATE)
+  metadata  Json? // Additional context (IP, user agent, etc.)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entity, action]) // Composite for analytics
+  @@index([userId, createdAt]) // Composite for user activity
+  @@map("audit_logs")
+}

@@ -1,0 +1,400 @@
+/* ==============================================
+   BASE PRINT STYLES - A4 FORMAT
+   ============================================== */
+
+@page {
+  size: A4;
+  margin: 2cm 1.5cm;
+}
+
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  
+  .page-break {
+    page-break-after: always;
+  }
+  
+  .no-break {
+    page-break-inside: avoid;
+  }
+  
+  .print-only {
+    display: block;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ==============================================
+   TYPOGRAPHY - UTF-8 GREEK SUPPORT
+   ============================================== */
+
+body {
+  font-family: 'DejaVu Sans', 'Arial', 'Helvetica', sans-serif;
+  font-size: 10pt;
+  line-height: 1.4;
+  color: #000;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+}
+
+h1 {
+  font-size: 18pt;
+  font-weight: bold;
+  margin: 0 0 10pt 0;
+  color: #1a1a1a;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: bold;
+  margin: 15pt 0 8pt 0;
+  color: #333;
+}
+
+h3 {
+  font-size: 12pt;
+  font-weight: bold;
+  margin: 10pt 0 5pt 0;
+  color: #444;
+}
+
+p {
+  margin: 0 0 8pt 0;
+}
+
+/* ==============================================
+   LAYOUT COMPONENTS
+   ============================================== */
+
+.document {
+  width: 100%;
+  max-width: 21cm;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.header {
+  border-bottom: 2pt solid #000;
+  padding-bottom: 10pt;
+  margin-bottom: 15pt;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8pt;
+}
+
+.building-info {
+  flex: 1;
+}
+
+.building-name {
+  font-size: 16pt;
+  font-weight: bold;
+  margin: 0 0 4pt 0;
+}
+
+.building-address {
+  font-size: 9pt;
+  color: #555;
+  margin: 0;
+}
+
+.document-info {
+  text-align: right;
+  font-size: 9pt;
+}
+
+.document-title {
+  font-size: 14pt;
+  font-weight: bold;
+  text-align: center;
+  margin: 10pt 0;
+  text-transform: uppercase;
+}
+
+.period-info {
+  text-align: center;
+  font-size: 11pt;
+  margin: 5pt 0 15pt 0;
+  font-weight: bold;
+}
+
+.footer {
+  border-top: 1pt solid #ccc;
+  padding-top: 8pt;
+  margin-top: 15pt;
+  font-size: 8pt;
+  color: #666;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ==============================================
+   TABLE STYLES
+   ============================================== */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10pt 0;
+  page-break-inside: auto;
+}
+
+thead {
+  display: table-header-group;
+}
+
+tbody {
+  display: table-row-group;
+}
+
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+
+th {
+  background: #f0f0f0;
+  border: 1pt solid #999;
+  padding: 6pt 8pt;
+  text-align: left;
+  font-weight: bold;
+  font-size: 9pt;
+}
+
+td {
+  border: 1pt solid #ccc;
+  padding: 5pt 8pt;
+  font-size: 9pt;
+}
+
+/* Column alignment */
+.align-left { text-align: left; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
+
+/* Numeric columns */
+.numeric {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+}
+
+/* Total rows */
+tr.total-row {
+  background: #e8e8e8;
+  font-weight: bold;
+}
+
+tr.total-row td {
+  border-top: 2pt solid #000;
+  border-bottom: 2pt solid #000;
+}
+
+tr.subtotal-row {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+tr.subtotal-row td {
+  border-top: 1pt solid #666;
+}
+
+/* Striped rows */
+tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+tbody tr:nth-child(odd) {
+  background: #fff;
+}
+
+/* ==============================================
+   SUMMARY BOXES
+   ============================================== */
+
+.summary-box {
+  border: 2pt solid #333;
+  padding: 10pt;
+  margin: 15pt 0;
+  background: #f9f9f9;
+}
+
+.summary-box h3 {
+  margin-top: 0;
+  border-bottom: 1pt solid #666;
+  padding-bottom: 5pt;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8pt;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4pt 0;
+}
+
+.summary-label {
+  font-weight: normal;
+}
+
+.summary-value {
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.summary-total {
+  font-size: 12pt;
+  border-top: 2pt solid #000;
+  padding-top: 8pt;
+  margin-top: 8pt;
+}
+
+/* ==============================================
+   METADATA & WATERMARKS
+   ============================================== */
+
+.metadata {
+  font-size: 8pt;
+  color: #999;
+  margin: 15pt 0 5pt 0;
+  padding: 5pt;
+  border: 1pt dashed #ccc;
+  background: #fafafa;
+}
+
+.version-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8pt;
+  color: #666;
+  margin-top: 5pt;
+}
+
+.locked-indicator {
+  display: inline-block;
+  background: #ff9800;
+  color: #fff;
+  padding: 2pt 6pt;
+  font-size: 8pt;
+  font-weight: bold;
+  border-radius: 3pt;
+  margin-left: 5pt;
+}
+
+/* ==============================================
+   UTILITY CLASSES
+   ============================================== */
+
+.text-bold { font-weight: bold; }
+.text-italic { font-style: italic; }
+.text-uppercase { text-transform: uppercase; }
+
+.mt-small { margin-top: 5pt; }
+.mt-medium { margin-top: 10pt; }
+.mt-large { margin-top: 20pt; }
+
+.mb-small { margin-bottom: 5pt; }
+.mb-medium { margin-bottom: 10pt; }
+.mb-large { margin-bottom: 20pt; }
+
+.border-box {
+  border: 1pt solid #ccc;
+  padding: 8pt;
+}
+
+.highlight {
+  background: #fff9c4;
+}
+
+/* ==============================================
+   CURRENCY FORMATTING
+   ============================================== */
+
+.currency {
+  font-family: 'Courier New', monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.currency::after {
+  content: ' €';
+}
+
+.currency.negative {
+  color: #d32f2f;
+}
+
+.currency.positive {
+  color: #388e3c;
+}
+
+/* ==============================================
+   NOTES & REMARKS
+   ============================================== */
+
+.notes-section {
+  border: 1pt solid #ccc;
+  padding: 8pt;
+  margin: 15pt 0;
+  background: #fafafa;
+  page-break-inside: avoid;
+}
+
+.notes-section h4 {
+  margin: 0 0 5pt 0;
+  font-size: 10pt;
+}
+
+.notes-section p {
+  margin: 0;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+
+/* ==============================================
+   SIGNATURES
+   ============================================== */
+
+.signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30pt;
+  page-break-inside: avoid;
+}
+
+.signature-box {
+  width: 45%;
+  text-align: center;
+}
+
+.signature-line {
+  border-top: 1pt solid #000;
+  margin-top: 40pt;
+  padding-top: 5pt;
+  font-size: 9pt;
+}
+
+.signature-label {
+  font-weight: bold;
+  margin-bottom: 3pt;
+}
+
+.signature-date {
+  font-size: 8pt;
+  color: #666;
+}

@@ -1,0 +1,20 @@
+<!-- SUMMARY BOX PARTIAL -->
+<div class="summary-box">
+  <h3>{{title}}</h3>
+  <div class="summary-grid">
+    {{#each items}}
+    <div class="summary-item">
+      <span class="summary-label">{{this.label}}:</span>
+      <span class="summary-value">{{this.value}}</span>
+    </div>
+    {{/each}}
+  </div>
+  {{#if total}}
+  <div class="summary-total">
+    <div class="summary-item">
+      <span class="summary-label">{{total.label}}:</span>
+      <span class="summary-value">{{total.value}}</span>
+    </div>
+  </div>
+  {{/if}}
+</div>

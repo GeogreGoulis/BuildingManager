@@ -1,0 +1,36 @@
+<!-- APARTMENT CHARGES TABLE PARTIAL -->
+<table class="apartment-charges-table">
+  <thead>
+    <tr>
+      <th class="align-left">Διαμέρισμα</th>
+      <th class="align-center">Όροφος</th>
+      <th class="align-center">Ποσοστό (%)</th>
+      <th class="align-right">Χρέωση (€)</th>
+      <th class="align-right">Πληρωμή (€)</th>
+      <th class="align-right">Υπόλοιπο (€)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each apartments}}
+    <tr>
+      <td class="align-left">{{this.number}}</td>
+      <td class="align-center">{{this.floor}}</td>
+      <td class="align-center">{{formatPercentage this.sharePercentage}}</td>
+      <td class="numeric currency">{{formatCurrency this.charge}}</td>
+      <td class="numeric currency">{{formatCurrency this.payment}}</td>
+      <td class="numeric currency {{#if this.isNegative}}negative{{/if}}">{{formatCurrency this.balance}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  {{#if showTotals}}
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="2" class="align-right"><strong>ΣΥΝΟΛΑ:</strong></td>
+      <td class="align-center"><strong>100.00%</strong></td>
+      <td class="numeric currency">{{formatCurrency totals.charges}}</td>
+      <td class="numeric currency">{{formatCurrency totals.payments}}</td>
+      <td class="numeric currency {{#if totals.isNegative}}negative{{/if}}">{{formatCurrency totals.balance}}</td>
+    </tr>
+  </tfoot>
+  {{/if}}
+</table>

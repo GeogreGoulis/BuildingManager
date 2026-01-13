@@ -1,0 +1,29 @@
+<!-- EXPENSE TABLE PARTIAL -->
+<table class="expense-table">
+  <thead>
+    <tr>
+      <th class="align-left">Κατηγορία</th>
+      <th class="align-left">Περιγραφή</th>
+      <th class="align-center">Ημερομηνία</th>
+      <th class="align-right">Ποσό (€)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each expenses}}
+    <tr>
+      <td class="align-left">{{this.category}}</td>
+      <td class="align-left">{{this.description}}</td>
+      <td class="align-center">{{this.date}}</td>
+      <td class="numeric currency">{{formatCurrency this.amount}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  {{#if showTotal}}
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="3" class="align-right"><strong>ΣΥΝΟΛΟ:</strong></td>
+      <td class="numeric currency">{{formatCurrency total}}</td>
+    </tr>
+  </tfoot>
+  {{/if}}
+</table>

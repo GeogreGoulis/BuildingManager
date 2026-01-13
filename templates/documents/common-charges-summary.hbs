@@ -1,0 +1,109 @@
+<!-- COMMON CHARGES SUMMARY DOCUMENT -->
+
+<!-- Summary Section -->
+{{> summary-box 
+  title="Συνοπτική Κατάσταση Περιόδου"
+  items=periodSummary.items
+  total=periodSummary.total
+}}
+
+<!-- Expenses by Category -->
+<h2>Ανάλυση Εξόδων ανά Κατηγορία</h2>
+
+{{#each expensesByCategory}}
+<div class="no-break">
+  <h3>{{this.categoryName}}</h3>
+  {{> expense-table 
+    expenses=this.expenses 
+    showTotal=true 
+    total=this.total
+  }}
+</div>
+{{/each}}
+
+<!-- Total Expenses Summary -->
+<div class="summary-box mt-large">
+  <h3>Συνολικά Έξοδα Περιόδου</h3>
+  <table class="expense-summary-table">
+    <thead>
+      <tr>
+        <th class="align-left">Κατηγορία</th>
+        <th class="align-right">Ποσό (€)</th>
+        <th class="align-right">Ποσοστό (%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each categorySummary}}
+      <tr>
+        <td class="align-left">{{this.name}}</td>
+        <td class="numeric currency">{{formatCurrency this.amount}}</td>
+        <td class="align-right">{{formatPercentage this.percentage}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td class="align-right"><strong>ΣΥΝΟΛΟ ΕΞΟΔΩΝ:</strong></td>
+        <td class="numeric currency">{{formatCurrency totalExpenses}}</td>
+        <td class="align-right"><strong>100.00%</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- Page Break -->
+<div class="page-break"></div>
+
+<!-- Apartment Charges -->
+<h2>Κατανομή Κοινοχρήστων ανά Διαμέρισμα</h2>
+
+{{> apartment-charges-table 
+  apartments=apartmentCharges
+  showTotals=true
+  totals=chargesTotals
+}}
+
+<!-- Payment Status Summary -->
+<div class="summary-box mt-large">
+  <h3>Κατάσταση Πληρωμών</h3>
+  <div class="summary-grid">
+    <div class="summary-item">
+      <span class="summary-label">Σύνολο Χρεώσεων:</span>
+      <span class="summary-value currency">{{formatCurrency paymentStatus.totalCharges}}</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Σύνολο Πληρωμών:</span>
+      <span class="summary-value currency">{{formatCurrency paymentStatus.totalPayments}}</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Διαμερίσματα σε Εκκαθάριση:</span>
+      <span class="summary-value">{{paymentStatus.paidCount}}</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Διαμερίσματα με Οφειλή:</span>
+      <span class="summary-value">{{paymentStatus.unpaidCount}}</span>
+    </div>
+  </div>
+  <div class="summary-total">
+    <div class="summary-item">
+      <span class="summary-label">Συνολικό Υπόλοιπο:</span>
+      <span class="summary-value currency {{#if paymentStatus.isNegative}}negative{{/if}}">
+        {{formatCurrency paymentStatus.totalBalance}}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Notes (if any) -->
+{{#if notes}}
+<div class="notes-section mt-large">
+  <h4>Παρατηρήσεις</h4>
+  <p>{{notes}}</p>
+</div>
+{{/if}}
+
+<!-- Signatures -->
+{{> signatures 
+  date=generatedDate
+  showOwner=false
+}}

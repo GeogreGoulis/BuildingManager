@@ -12,7 +12,6 @@ export const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const canWrite = hasRole([UserRole.SUPER_ADMIN, UserRole.BUILDING_ADMIN]);
   const isSuperAdmin = hasRole([UserRole.SUPER_ADMIN]);
 
   const navigation = [

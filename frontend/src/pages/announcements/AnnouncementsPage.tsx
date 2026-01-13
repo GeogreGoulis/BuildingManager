@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { announcementsApi, buildingsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
-import type { Announcement, Building } from '../../types';
+import type { Building } from '../../types';
 
 interface AnnouncementFormData {
   title: string;

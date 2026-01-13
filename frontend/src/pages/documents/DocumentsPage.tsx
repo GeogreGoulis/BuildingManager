@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsApi, buildingsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
-import type { Document, Building } from '../../types';
+import type { Building } from '../../types';
 
 interface DocumentFormData {
   title: string;

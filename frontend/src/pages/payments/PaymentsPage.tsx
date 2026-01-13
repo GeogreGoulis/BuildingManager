@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { paymentsApi, buildingsApi, apartmentsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
-import type { Payment, Building, Apartment } from '../../types';
+import type { Building, Apartment } from '../../types';
 
 interface PaymentFormData {
   apartmentId: string;

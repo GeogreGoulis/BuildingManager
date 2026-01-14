@@ -4,6 +4,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class DocumentsService {
@@ -24,16 +27,15 @@ export class DocumentsService {
       throw new NotFoundException('Building not found');
     }
 
-    // Create document record
-    // Note: In production, you'd store the file in S3, Azure Blob, or local storage
+    // Create document record with actual file path
     const document = await this.prisma.document.create({
       data: {
         buildingId,
         name: createDocumentDto.title || file?.originalname || 'Untitled',
-        filename: file?.originalname || 'unknown',
+        filename: file?.filename || file?.originalname || 'unknown', // Use generated filename
         mimeType: file?.mimetype || 'application/octet-stream',
         size: file?.size || 0,
-        path: `/uploads/${buildingId}/${file?.originalname || 'unknown'}`, // Placeholder path
+        path: file?.path || '', // Actual file path on disk
         category: createDocumentDto.category || 'OTHER',
         uploadedBy,
       },
@@ -78,6 +80,70 @@ export class DocumentsService {
     return document;
   }
 
+  async getFilePath(buildingId: string, id: string): Promise<{ path: string; filename: string; mimeType: string }> {
+    const document = await this.findOne(buildingId, id);
+    
+    if (!document.path || !fs.existsSync(document.path)) {
+      throw new NotFoundException('File not found on disk');
+    }
+    
+    return {
+      path: document.path,
+      filename: document.name,
+      mimeType: document.mimeType,
+    };
+  }
+
+  async getMultipleFilePaths(buildingId: string, ids: string[]): Promise<Array<{ path: string; filename: string }>> {
+    const documents = await this.prisma.document.findMany({
+      where: { 
+        id: { in: ids },
+        buildingId,
+      },
+    });
+    
+    return documents
+      .filter(doc => doc.path && fs.existsSync(doc.path))
+      .map(doc => ({
+        path: doc.path,
+        filename: doc.name,
+      }));
+  }
+
+  async update(buildingId: string, id: string, updateDocumentDto: UpdateDocumentDto, updatedBy?: string) {
+    const existingDocument = await this.prisma.document.findFirst({
+      where: { id, buildingId },
+    });
+
+    if (!existingDocument) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const document = await this.prisma.document.update({
+      where: { id },
+      data: {
+        name: updateDocumentDto.name,
+        category: updateDocumentDto.category,
+      },
+    });
+
+    // Audit log
+    if (updatedBy) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: updatedBy,
+          action: 'UPDATE',
+          entity: 'Document',
+          entityId: id,
+          oldValue: { name: existingDocument.name, category: existingDocument.category },
+          newValue: { name: document.name, category: document.category },
+        },
+      });
+    }
+
+    return document;
+  }
+
   async remove(buildingId: string, id: string, deletedBy?: string) {
     const document = await this.prisma.document.findFirst({
       where: { id, buildingId },
@@ -87,7 +153,17 @@ export class DocumentsService {
       throw new NotFoundException('Document not found');
     }
 
-    // Soft delete
+    // Delete actual file from disk
+    if (document.path && fs.existsSync(document.path)) {
+      try {
+        fs.unlinkSync(document.path);
+      } catch {
+        // Continue even if file deletion fails
+        console.error(`Failed to delete file: ${document.path}`);
+      }
+    }
+
+    // Soft delete from database
     await this.prisma.document.update({
       where: { id },
       data: { deletedAt: new Date() },

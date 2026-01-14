@@ -60,6 +60,15 @@ enum AuditAction {
   REJECT
 }
 
+enum ShareType {
+  COMMON      // Κοινόχρηστα - shareCommon
+  ELEVATOR    // Ανελκυστήρας - shareElevator
+  HEATING     // Θέρμανση - shareHeating
+  SPECIAL     // Ειδικά έξοδα - shareSpecial
+  OWNER       // Έξοδα ιδιοκτητών - shareOwner
+  OTHER       // Λοιπά έξοδα - shareOther
+}
+
 // ==================== USERS & AUTHENTICATION ====================
 
 model User {
@@ -170,11 +179,12 @@ model Apartment {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  building          Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  owner             User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  oilMeasurements   OilMeasurement[]
-  commonChargeLines CommonChargeLine[]
-  payments          Payment[]
+  building            Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  owner               User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  oilMeasurements     OilMeasurement[]
+  commonChargeLines   CommonChargeLine[]
+  payments            Payment[]
+  directChargeExpenses Expense[]         @relation("DirectChargeExpenses")
 
   @@unique([buildingId, number])
   @@index([buildingId])
@@ -223,34 +233,39 @@ model Supplier {
 }
 
 model Expense {
-  id              String         @id @default(uuid())
-  buildingId      String
-  categoryId      String
-  supplierId      String?
-  amount          Decimal        @db.Decimal(10, 2)
-  description     String
-  expenseDate     DateTime
-  invoiceNumber   String?
-  isPaid          Boolean        @default(false)
-  paidDate        DateTime?
-  paymentMethod   PaymentMethod?
-  notes           String?
-  periodId        String? // Σύνδεση με περίοδο κοινοχρήστων
-  deletedAt       DateTime? // Soft delete
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                  String         @id @default(uuid())
+  buildingId          String
+  categoryId          String
+  supplierId          String?
+  amount              Decimal        @db.Decimal(10, 2)
+  description         String
+  expenseDate         DateTime
+  invoiceNumber       String?
+  isPaid              Boolean        @default(false)
+  paidDate            DateTime?
+  paymentMethod       PaymentMethod?
+  shareType           ShareType      @default(COMMON) // Τύπος χιλιοστών για επιμερισμό
+  isDirectCharge      Boolean        @default(false) // Άμεση χρέωση σε διαμέρισμα
+  chargedApartmentId  String?        // Το διαμέρισμα που χρεώνεται άμεσα (αν isDirectCharge=true)
+  notes               String?
+  periodId            String? // Σύνδεση με περίοδο κοινοχρήστων
+  deletedAt           DateTime? // Soft delete
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
-  building Building            @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  category ExpenseCategory     @relation(fields: [categoryId], references: [id])
-  supplier Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  period   CommonChargePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
-  documents Document[]
+  building          Building            @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  category          ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  supplier          Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  period            CommonChargePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  chargedApartment  Apartment?          @relation("DirectChargeExpenses", fields: [chargedApartmentId], references: [id], onDelete: SetNull)
+  documents         Document[]
 
   @@index([buildingId])
   @@index([categoryId])
   @@index([expenseDate])
   @@index([isPaid])
   @@index([deletedAt])
+  @@index([chargedApartmentId])
   @@index([buildingId, expenseDate]) // Composite for queries
   @@map("expenses")
 }

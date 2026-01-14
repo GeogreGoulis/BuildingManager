@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Delete,
@@ -9,11 +10,15 @@ import {
   UseInterceptors,
   UploadedFile,
   Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { createReadStream } from 'fs';
+import * as archiver from 'archiver';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -53,6 +58,17 @@ export class DocumentsController {
     return this.documentsService.findOne(buildingId, id);
   }
 
+  @Patch(':id')
+  @Roles(RoleName.SUPER_ADMIN, RoleName.BUILDING_ADMIN)
+  update(
+    @Param('buildingId') buildingId: string,
+    @Param('id') id: string,
+    @Body() updateDocumentDto: UpdateDocumentDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.documentsService.update(buildingId, id, updateDocumentDto, user.userId);
+  }
+
   @Get(':id/download')
   @Roles(RoleName.SUPER_ADMIN, RoleName.BUILDING_ADMIN, RoleName.READ_ONLY)
   async download(
@@ -60,9 +76,49 @@ export class DocumentsController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    const document = await this.documentsService.findOne(buildingId, id);
-    // For now, return document info - file storage would need to be implemented
-    res.json(document);
+    const fileInfo = await this.documentsService.getFilePath(buildingId, id);
+    
+    res.set({
+      'Content-Type': fileInfo.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(fileInfo.filename)}"`,
+    });
+    
+    const fileStream = createReadStream(fileInfo.path);
+    fileStream.pipe(res);
+  }
+
+  @Post('download-zip')
+  @Roles(RoleName.SUPER_ADMIN, RoleName.BUILDING_ADMIN, RoleName.READ_ONLY)
+  async downloadMultiple(
+    @Param('buildingId') buildingId: string,
+    @Body() body: { ids: string[] },
+    @Res() res: Response,
+  ) {
+    const files = await this.documentsService.getMultipleFilePaths(buildingId, body.ids);
+    
+    if (files.length === 0) {
+      res.status(404).json({ message: 'No files found' });
+      return;
+    }
+    
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="documents_${Date.now()}.zip"`,
+    });
+    
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    
+    archive.on('error', (err) => {
+      res.status(500).json({ message: err.message });
+    });
+    
+    archive.pipe(res);
+    
+    for (const file of files) {
+      archive.file(file.path, { name: file.filename });
+    }
+    
+    await archive.finalize();
   }
 
   @Delete(':id')

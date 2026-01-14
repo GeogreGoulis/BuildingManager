@@ -1,338 +1,808 @@
-# Building Manager API
+# Building Manager - Διαχείριση Κοινοχρήστων Πολυκατοικίας
 
-Multi-building management system built with NestJS and PostgreSQL.
+A comprehensive building management system for Greek apartment buildings (πολυκατοικίες). Manages common charges (κοινόχρηστα), expenses, payments, documents, and tenant communications.
 
-## Quick Links
+## 🎯 Business Purpose
 
-📚 **Documentation:**
-- [Quick Start Guide](./QUICKSTART.md) - Get running in 5 minutes
-- [Setup Guide](./SETUP.md) - Detailed installation instructions
-- [Database Architecture](./DATABASE_ARCHITECTURE.md) - Complete schema documentation (8000+ lines)
-- [Database Summary](./DATABASE_SUMMARY.md) - Schema statistics & quick reference
-- [Migration Guide](./MIGRATION_GUIDE.md) - How to apply schema changes
+This system automates the calculation and management of **κοινόχρηστα** (common charges) for apartment buildings in Greece. It handles:
+- Expense tracking and categorization
+- Proportional distribution based on ownership shares (χιλιοστά)
+- Payment recording and balance tracking
+- Document management for invoices and contracts
+- Building-wide announcements and communications
 
-📁 **Examples:**
-- [Migration Examples](./migrations/examples/) - SQL patterns for common migrations
-- [Rollback Strategies](./migrations/examples/ROLLBACK_STRATEGIES.md) - Safe rollback procedures
+---
 
-## Features
+## 📋 Table of Contents
 
-✅ **Implemented:**
-- JWT Authentication with Role-Based Access Control (RBAC)
-- User Management (CRUD, role assignment, building-scoped permissions)
-- Building & Apartment Management (CRUD, share percentages, owner assignment)
-- Comprehensive Audit Trail (all operations logged)
-- Soft Delete Support (13 models with recoverable deletion)
-- Production-Ready Schema:
-  - 6 Type-Safe Enums (RoleType, PaymentMethod, DocumentCategory, etc.)
-  - 47 Optimized Indexes (single + composite)
-  - Enhanced AuditLog (oldValue/newValue tracking)
+1. [Business Requirements](#-business-requirements)
+2. [Technical Architecture](#-technical-architecture)
+3. [Database Schema](#-database-schema)
+4. [API Endpoints](#-api-endpoints)
+5. [Frontend Features](#-frontend-features)
+6. [Installation & Setup](#-installation--setup)
+7. [Development Guide](#-development-guide)
+8. [Business Rules](#-business-rules)
 
-🚧 **In Progress:**
-- Expenses Module (categories, suppliers, invoice tracking)
-- Oil Management Module (deliveries, measurements, cost allocation)
-- Common Charges Module (period management, calculations)
-- Documents Module (file upload, entity associations)
-- Payments Module (payment recording, balance tracking)
+---
 
-## Prerequisites
+## 📊 Business Requirements
 
-- Node.js 20+
-- Docker & Docker Compose
-- PostgreSQL 16+
+### Core Entities
 
-## Getting Started
+| Entity | Greek Name | Purpose |
+|--------|------------|---------|
+| Building | Πολυκατοικία | The apartment building with settings |
+| Apartment | Διαμέρισμα | Individual unit with ownership shares |
+| Expense | Έξοδο | Costs to be distributed among apartments |
+| ExpenseCategory | Κατηγορία Εξόδου | Determines distribution method |
+| CommonChargePeriod | Περίοδος Κοινοχρήστων | Monthly billing period |
+| Payment | Πληρωμή | Payments received from tenants |
+| Document | Έγγραφο | Invoices, contracts, photos |
+| Announcement | Ανακοίνωση | Building-wide communications |
 
-### 1. Clone and Install
+### User Roles (RBAC)
 
-```bash
-npm install
-```
+| Role | Greek | Permissions |
+|------|-------|-------------|
+| SUPER_ADMIN | Διαχειριστής Συστήματος | Full access to all buildings |
+| BUILDING_ADMIN | Διαχειριστής Πολυκατοικίας | Full access to assigned buildings |
+| READ_ONLY | Ανάγνωση Μόνο | View-only access |
 
-### 2. Environment Setup
+### Ownership Shares (Χιλιοστά)
 
-```bash
-cp .env.example .env
-```
+Each apartment has multiple share percentages:
+- **shareCommon** - General expenses (γενικά χιλιοστά)
+- **shareElevator** - Elevator expenses (ανελκυστήρας)
+- **shareHeating** - Heating expenses (θέρμανση)
+- **shareOther** - Other expenses (λοιπά)
 
-Edit `.env` with your configuration.
+### Expense Distribution Methods
 
-### 3. Start Database
+| Method | Greek | Description |
+|--------|-------|-------------|
+| GENERAL_SHARE | Γενικά Χιλιοστά | Distributed by shareCommon |
+| HEATING_SHARE | Χιλιοστά Θέρμανσης | Distributed by shareHeating |
+| CONSUMPTION_BASED | Κατανάλωση | Based on actual usage (oil, water) |
+| EQUAL_SPLIT | Ίση Κατανομή | Divided equally among apartments |
+| DIRECT_CHARGE | Άμεση Χρέωση | 100% to specific apartment |
 
-```bash
-docker-compose up -d postgres
-```
+### Expense Charge Types
 
-### 4. Run Migrations
+Expenses can be charged in two ways:
+- **Κοινόχρηστο** (Shared): Distributed among all apartments by shares
+- **Χρέωση σε διαμέρισμα** (Direct): 100% charged to a specific apartment
 
-```bash
-# Generate migration from schema
-npx prisma migrate dev --name enhanced-schema-v2
+---
 
-# Or reset database (DEV ONLY - deletes all data)
-npx prisma migrate reset
-```
+## 🏗 Technical Architecture
 
-### 5. Seed Database
+### Tech Stack
 
-```bash
-npx prisma db seed
-```
+**Backend:**
+- **NestJS 10.3** - Node.js framework
+- **PostgreSQL 16** - Database
+- **Prisma 5.22** - ORM
+- **JWT** - Authentication
+- **bcrypt** - Password hashing
+- **Puppeteer** - PDF generation
+- **Handlebars** - PDF templates
+- **TypeScript 5.3** - Language
 
-**Default Credentials:**
-- Email: `admin@buildingmanager.com`
-- Password: `Admin123!`
+**Frontend:**
+- **React 18** - UI library
+- **Vite** - Build tool
+- **TailwindCSS** - Styling
+- **React Query (TanStack)** - Data fetching
+- **React Router** - Navigation
+- **TypeScript** - Language
 
-### 6. Start Development Server
+**Infrastructure:**
+- **Docker Compose** - Container orchestration
+- **Node 20** - Runtime
 
-```bash
-npm run start:dev
-```
-
-The API will be available at `http://localhost:3000`
-
-### 7. Test API
-
-```bash
-# Login and get JWT token
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@buildingmanager.com",
-    "password": "Admin123!"
-  }'
-
-# Use token for authenticated requests
-curl -X GET http://localhost:3000/users \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-```
-
-For detailed testing examples, see [QUICKSTART.md](./QUICKSTART.md).
-
-## Available Scripts
-
-- `npm run start:dev` - Start development server with hot reload
-- `npm run start:prod` - Start production server
-- `npm run build` - Build the application
-- `npm run test` - Run unit tests
-- `npm run test:e2e` - Run end-to-end tests
-- `npm run lint` - Lint and fix code
-- `npm run format` - Format code with Prettier
-- `npm run prisma:generate` - Generate Prisma client
-- `npm run prisma:migrate` - Run database migrations
-- `npm run prisma:studio` - Open Prisma Studio (database GUI)
-- `npm run prisma:seed` - Seed database with initial data
-
-## Project Structure
+### Architecture Pattern
 
 ```
-src/
-├── auth/              # Authentication & authorization
-│   ├── guards/        # JWT & Roles guards
-│   ├── strategies/    # Passport JWT strategy
-│   └── dto/           # Login/register DTOs
-├── users/             # User management
-│   ├── users.controller.ts
-│   ├── users.service.ts
-│   └── dto/           # User DTOs
-├── buildings/         # Buildings & apartments
-│   ├── buildings.controller.ts
-│   ├── buildings.service.ts
-│   └── dto/           # Building/apartment DTOs
-├── expenses/          # Expense tracking (stub)
-├── oil-management/    # Oil delivery & measurements (stub)
-├── common-charges/    # Common charges calculation (stub)
-├── documents/         # Document management (stub)
-├── audit-log/         # Audit trail (stub)
-├── prisma/            # Database service
-│   ├── prisma.service.ts
-│   └── soft-delete.middleware.ts
-└── common/
-    ├── decorators/    # Custom decorators (@Roles, @CurrentUser)
-    └── enums/         # RBAC enums
-
-prisma/
-├── schema.prisma      # Database schema (19 models, 6 enums)
-├── migrations/        # Migration history
-│   └── examples/      # SQL migration examples
-└── seed.ts           # Initial data seeding
-
-docs/
-├── DATABASE_ARCHITECTURE.md  # Comprehensive design documentation
-├── DATABASE_SUMMARY.md       # Quick reference & statistics
-└── MIGRATION_GUIDE.md        # Migration procedures
+┌─────────────────────────────────────────────────────────┐
+│                      Frontend (React)                    │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────┐   │
+│  │Dashboard│ │Expenses │ │Payments │ │CommonCharges│   │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └──────┬──────┘   │
+└───────┼───────────┼───────────┼─────────────┼──────────┘
+        │           │           │             │
+        ▼           ▼           ▼             ▼
+┌─────────────────────────────────────────────────────────┐
+│                   API Gateway (REST)                     │
+│                   http://localhost:3000                  │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────┐
+│                    NestJS Backend                        │
+│  ┌──────────┐ ┌──────────────┐ ┌──────────────────┐    │
+│  │   Auth   │ │   Expenses   │ │  CommonCharges   │    │
+│  │  Module  │ │    Module    │ │     Module       │    │
+│  └────┬─────┘ └──────┬───────┘ └────────┬─────────┘    │
+│       │              │                   │              │
+│       ▼              ▼                   ▼              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │              Prisma ORM Service                  │   │
+│  │         (Soft Delete Middleware)                 │   │
+│  └──────────────────────┬──────────────────────────┘   │
+└─────────────────────────┼───────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│              PostgreSQL Database                         │
+│              (19 Tables, 7 Enums)                        │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Database Schema
+### Project Structure
 
-### Models (19 total):
-1. **User Management:** User, Role, UserRole
-2. **Property:** Building, Apartment
-3. **Financial:** ExpenseCategory, Supplier, Expense, OilDelivery, OilMeasurement, CommonChargePeriod, CommonChargeLine, Payment
-4. **Documents:** Document, Event, Reminder, Announcement, Comment
-5. **System:** AuditLog
-
-### Key Features:
-- **UUIDs:** All primary keys for global uniqueness
-- **Soft Deletes:** 13 models with `deletedAt` field (recoverable deletion)
-- **Type-Safe Enums:** RoleType, PaymentMethod, DocumentCategory, EventType, AnnouncementPriority, AuditAction
-- **Optimized Indexes:** 47 indexes (28 single-column + 19 composite)
-- **Referential Integrity:** Strategic ON DELETE behaviors (CASCADE/RESTRICT/SET NULL)
-- **Audit Trail:** Comprehensive logging with oldValue/newValue tracking
-
-For complete schema documentation, see [DATABASE_ARCHITECTURE.md](./DATABASE_ARCHITECTURE.md).
-
-## Tech Stack
-
-- **Framework:** NestJS 10.3.0
-- **Database:** PostgreSQL 16 (Alpine)
-- **ORM:** Prisma 5.8.0
-- **Authentication:** JWT with passport-jwt
-- **Authorization:** Role-Based Access Control (RBAC)
-- **Validation:** class-validator, class-transformer
-- **Language:** TypeScript 5.3.3 (strict mode)
-- **Password Hashing:** bcrypt
-- **File Upload:** multer
-
-## Authentication & Authorization
-
-### Roles:
-- **SUPER_ADMIN:** Global access to all buildings and system settings
-- **BUILDING_ADMIN:** Full access to assigned building(s)
-- **READ_ONLY:** View-only access to assigned building(s)
-
-### Building-Scoped Permissions:
-Users can have different roles for different buildings:
-```typescript
-// User A is BUILDING_ADMIN for Building 1
-// User A is READ_ONLY for Building 2
+```
+BuildingManager/
+├── src/                          # Backend source
+│   ├── main.ts                   # Application entry
+│   ├── app.module.ts             # Root module
+│   ├── auth/                     # Authentication
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── guards/               # JWT, Roles guards
+│   │   └── strategies/           # Passport JWT strategy
+│   ├── buildings/                # Buildings & Apartments
+│   ├── expenses/                 # Expense management
+│   ├── common-charges/           # Period & calculation
+│   │   ├── common-charges.controller.ts
+│   │   ├── common-charges.service.ts
+│   │   ├── common-charges-calculation.service.ts  # Pure calculation
+│   │   ├── common-charges-persistence.service.ts  # Database ops
+│   │   └── dto/                  # Input/Output DTOs
+│   ├── payments/                 # Payment tracking
+│   ├── documents/                # File management
+│   ├── print/                    # PDF generation
+│   │   ├── print.controller.ts
+│   │   ├── print.service.ts
+│   │   └── templates/            # Handlebars templates
+│   ├── prisma/                   # Database service
+│   │   ├── prisma.service.ts
+│   │   └── soft-delete.middleware.ts
+│   └── common/
+│       ├── decorators/           # @Roles, @CurrentUser
+│       └── enums/                # RBAC enums
+├── frontend/                     # React frontend
+│   ├── src/
+│   │   ├── main.tsx              # Entry point
+│   │   ├── App.tsx               # Root component
+│   │   ├── app/                  # Auth context, router
+│   │   ├── pages/                # Page components
+│   │   │   ├── dashboard/
+│   │   │   ├── expenses/
+│   │   │   ├── common-charges/
+│   │   │   ├── payments/
+│   │   │   ├── documents/
+│   │   │   ├── announcements/
+│   │   │   └── configuration/    # Buildings, apartments
+│   │   ├── services/             # API clients
+│   │   ├── components/           # Shared components
+│   │   ├── types/                # TypeScript types
+│   │   └── utils/                # Utilities (dateFormat, etc.)
+│   └── package.json
+├── prisma/
+│   ├── schema.prisma             # Database schema
+│   ├── seed.ts                   # Initial data
+│   └── migrations/               # Migration history
+├── templates/                    # PDF templates
+│   ├── layouts/base.hbs
+│   ├── documents/
+│   ├── partials/
+│   └── styles/print.css
+├── test/                         # Test files
+├── docker-compose.yml
+├── Dockerfile
+└── package.json
 ```
 
-### Protected Endpoints:
-```typescript
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RoleType.SUPER_ADMIN, RoleType.BUILDING_ADMIN)
-async createBuilding() {
-  // Only SUPER_ADMIN and BUILDING_ADMIN can create buildings
+---
+
+## 💾 Database Schema
+
+### Enums (7)
+
+```prisma
+enum RoleType {
+  SUPER_ADMIN
+  BUILDING_ADMIN
+  READ_ONLY
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  ONLINE
+}
+
+enum DocumentCategory {
+  INVOICE
+  CONTRACT
+  REPORT
+  PHOTO
+  OTHER
+}
+
+enum EventType {
+  MEETING
+  MAINTENANCE
+  INSPECTION
+  ASSEMBLY
+  OTHER
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOCK
+  UNLOCK
+  APPROVE
+  REJECT
+}
+
+enum ShareType {
+  COMMON      // Κοινόχρηστα
+  ELEVATOR    // Ανελκυστήρας
+  HEATING     // Θέρμανση
+  SPECIAL     // Ειδικά
+  OWNER       // Ιδιοκτητών
+  OTHER       // Λοιπά
 }
 ```
 
-## Soft Delete
+### Core Models
 
-The system uses soft delete for 13 models (User, Building, Expense, etc.):
-
-```typescript
-// Soft delete (sets deletedAt timestamp)
-await prisma.user.delete({ where: { id } });
-
-// Force hard delete
-await prisma.user.delete({ where: { id }, forceDelete: true });
-
-// Restore soft-deleted record
-await restoreSoftDeleted(prisma.user, { id });
-
-// Query only deleted records
-const deleted = await findDeleted(prisma.user, {});
+#### User
+```prisma
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? // Soft delete
+  
+  userRoles  UserRole[]
+  apartments Apartment[]  // Owned apartments
+  payments   Payment[]
+}
 ```
 
-Soft-deleted records are automatically filtered from queries but remain in database for audit/recovery.
+#### Building
+```prisma
+model Building {
+  id           String    @id @default(uuid())
+  name         String
+  address      String
+  city         String
+  postalCode   String
+  taxId        String?   // ΑΦΜ
+  deletedAt    DateTime?
+  
+  apartments   Apartment[]
+  expenses     Expense[]
+  periods      CommonChargePeriod[]
+  documents    Document[]
+}
+```
 
-## Development
+#### Apartment
+```prisma
+model Apartment {
+  id           String    @id @default(uuid())
+  buildingId   String
+  ownerId      String?
+  number       String    // e.g., "1A", "2B"
+  floor        Int
+  squareMeters Decimal
+  
+  // Ownership shares (χιλιοστά) - stored as percentages (0-100)
+  shareCommon   Decimal   @default(0)
+  shareElevator Decimal   @default(0)
+  shareHeating  Decimal   @default(0)
+  shareOther    Decimal   @default(0)
+  
+  isOccupied   Boolean   @default(true)
+  deletedAt    DateTime?
+  
+  building     Building  @relation(...)
+  owner        User?     @relation(...)
+  payments     Payment[]
+  chargeLines  CommonChargeLine[]
+}
+```
 
-### Database Management:
+#### Expense
+```prisma
+model Expense {
+  id                  String    @id @default(uuid())
+  buildingId          String
+  categoryId          String?
+  supplierId          String?
+  description         String
+  amount              Decimal
+  expenseDate         DateTime
+  invoiceNumber       String?
+  
+  // Direct charge fields
+  isDirectCharge      Boolean   @default(false)
+  chargedApartmentId  String?   // UUID of apartment if direct charge
+  
+  deletedAt           DateTime?
+  
+  building            Building  @relation(...)
+  category            ExpenseCategory? @relation(...)
+  chargedApartment    Apartment? @relation(...)
+}
+```
+
+#### ExpenseCategory
+```prisma
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  shareType   ShareType @default(COMMON)  // Determines distribution
+  isActive    Boolean   @default(true)
+  
+  expenses    Expense[]
+}
+```
+
+#### CommonChargePeriod
+```prisma
+model CommonChargePeriod {
+  id         String    @id @default(uuid())
+  buildingId String
+  name       String    // e.g., "Ιανουάριος 2026"
+  startDate  DateTime
+  endDate    DateTime
+  dueDate    DateTime  // Payment deadline
+  isLocked   Boolean   @default(false)
+  lockedAt   DateTime?
+  version    Int       @default(1)
+  deletedAt  DateTime?
+  
+  building   Building  @relation(...)
+  lines      CommonChargeLine[]
+}
+```
+
+#### CommonChargeLine
+```prisma
+model CommonChargeLine {
+  id          String    @id @default(uuid())
+  periodId    String
+  apartmentId String
+  
+  totalAmount       Decimal
+  previousBalance   Decimal   @default(0)
+  currentCharges    Decimal
+  totalDue          Decimal
+  
+  calculationJson   Json?     // Full breakdown for audit
+  
+  period      CommonChargePeriod @relation(...)
+  apartment   Apartment @relation(...)
+}
+```
+
+#### Payment
+```prisma
+model Payment {
+  id            String        @id @default(uuid())
+  buildingId    String
+  apartmentId   String
+  userId        String
+  amount        Decimal
+  paymentDate   DateTime
+  paymentMethod PaymentMethod
+  reference     String?       // Check/transfer number
+  notes         String?
+  deletedAt     DateTime?
+  
+  apartment     Apartment     @relation(...)
+  user          User          @relation(...)
+}
+```
+
+#### Document
+```prisma
+model Document {
+  id          String           @id @default(uuid())
+  buildingId  String
+  title       String
+  description String?
+  category    DocumentCategory
+  fileName    String
+  filePath    String
+  mimeType    String
+  size        Int
+  deletedAt   DateTime?
+  
+  building    Building         @relation(...)
+}
+```
+
+### Full Schema Features
+
+- **UUIDs** - All primary keys are UUIDs for global uniqueness
+- **Soft Delete** - 13 models have `deletedAt` field for recoverable deletion
+- **Indexes** - 47 optimized indexes for query performance
+- **Audit Trail** - AuditLog table tracks all changes
+
+---
+
+## 🔌 API Endpoints
+
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | Login with email/password |
+| POST | `/api/v1/auth/register` | Register new user |
+| GET | `/api/v1/auth/profile` | Get current user profile |
+
+### Buildings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings` | List all buildings |
+| POST | `/api/v1/buildings` | Create building |
+| GET | `/api/v1/buildings/:id` | Get building details |
+| PATCH | `/api/v1/buildings/:id` | Update building |
+| DELETE | `/api/v1/buildings/:id` | Delete building |
+
+### Apartments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/apartments` | List apartments |
+| POST | `/api/v1/buildings/:buildingId/apartments` | Create apartment |
+| GET | `/api/v1/buildings/:buildingId/apartments/:id` | Get apartment |
+| PATCH | `/api/v1/buildings/:buildingId/apartments/:id` | Update apartment |
+| DELETE | `/api/v1/buildings/:buildingId/apartments/:id` | Delete apartment |
+
+### Expenses
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/expenses` | List expenses |
+| POST | `/api/v1/buildings/:buildingId/expenses` | Create expense |
+| GET | `/api/v1/buildings/:buildingId/expenses/:id` | Get expense |
+| PATCH | `/api/v1/buildings/:buildingId/expenses/:id` | Update expense |
+| DELETE | `/api/v1/buildings/:buildingId/expenses/:id` | Delete expense |
+| GET | `/api/v1/expense-categories` | List categories |
+
+### Common Charges
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/common-charges/periods` | List periods |
+| POST | `/api/v1/buildings/:buildingId/common-charges/periods` | Create period |
+| GET | `/api/v1/buildings/:buildingId/common-charges/periods/:id` | Get period |
+| PATCH | `/api/v1/buildings/:buildingId/common-charges/periods/:id` | Update period |
+| DELETE | `/api/v1/buildings/:buildingId/common-charges/periods/:id` | Delete period |
+| GET | `/api/v1/buildings/:buildingId/common-charges/periods/:id/preview` | Preview calculation |
+| POST | `/api/v1/buildings/:buildingId/common-charges/periods/:id/calculate` | Run calculation |
+| POST | `/api/v1/buildings/:buildingId/common-charges/periods/:id/lock` | Lock period |
+
+### Payments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/payments` | List payments |
+| POST | `/api/v1/buildings/:buildingId/payments` | Create payment |
+| GET | `/api/v1/buildings/:buildingId/payments/:id` | Get payment |
+| DELETE | `/api/v1/buildings/:buildingId/payments/:id` | Delete payment |
+
+### Documents
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/documents` | List documents |
+| POST | `/api/v1/buildings/:buildingId/documents` | Upload document |
+| GET | `/api/v1/buildings/:buildingId/documents/:id/download` | Download |
+| DELETE | `/api/v1/buildings/:buildingId/documents/:id` | Delete document |
+
+### Announcements
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/buildings/:buildingId/announcements` | List announcements |
+| POST | `/api/v1/buildings/:buildingId/announcements` | Create announcement |
+| PATCH | `/api/v1/buildings/:buildingId/announcements/:id` | Update announcement |
+| DELETE | `/api/v1/buildings/:buildingId/announcements/:id` | Delete announcement |
+
+### Print/PDF
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/print/common-charges/:periodId` | Generate PDF report |
+| GET | `/api/v1/print/apartment/:apartmentId/period/:periodId` | Apartment statement |
+
+---
+
+## 🖥 Frontend Features
+
+### Pages
+
+1. **Dashboard** (`/dashboard`)
+   - Building overview
+   - Recent expenses
+   - Recent announcements
+   - Quick stats
+
+2. **Expenses** (`/expenses`)
+   - List all expenses with filters
+   - Create/Edit expense form
+   - Charge type: Shared vs Direct charge
+   - Category selection
+
+3. **Common Charges** (`/common-charges`)
+   - Period management (create, edit, delete)
+   - Preview calculation before saving
+   - Calculate and lock periods
+   - View breakdown by apartment
+
+4. **Payments** (`/payments`)
+   - Record payments by apartment
+   - Payment method (Cash, Transfer, Check)
+   - Payment history
+
+5. **Documents** (`/documents`)
+   - File upload/download
+   - Category filtering
+   - Bulk download
+
+6. **Announcements** (`/announcements`)
+   - Create announcements
+   - Priority levels
+   - Active/Inactive status
+
+7. **Configuration** (`/configuration`)
+   - Buildings management
+   - Apartments management
+   - Share percentages (χιλιοστά)
+   - Users management
+
+### UI Features
+
+- **Date Format**: DD/MM/YYYY (Greek format)
+- **Currency**: EUR (€)
+- **Language**: Greek (el-GR) with English fallback
+- **Form Validation**: Client-side validation with error messages
+- **Responsive Design**: Mobile-friendly with TailwindCSS
+
+### Form Validations
+
+**Period Creation:**
+- Start date must be before end date
+- Due date must be after end date
+- All dates required
+
+**Expense Creation:**
+- Amount must be positive
+- Category required
+- If direct charge, apartment selection required
+
+---
+
+## 🚀 Installation & Setup
+
+### Prerequisites
+
+- Node.js 20+
+- Docker & Docker Compose
+- Git
+
+### Quick Start
 
 ```bash
-# Open Prisma Studio (database GUI)
+# 1. Clone repository
+git clone <repository-url>
+cd BuildingManager
+
+# 2. Start all services
+docker-compose up -d
+
+# 3. Wait for services to be ready (about 30 seconds)
+# API: http://localhost:3000
+# Frontend: http://localhost:5173
+
+# 4. Login with default credentials
+# Email: admin@buildingmanager.com
+# Password: Admin123!
+```
+
+### Docker Compose Services
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: building_manager
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/building_manager
+      JWT_SECRET: your-super-secret-jwt-key
+      JWT_EXPIRATION: 24h
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+```
+
+### Manual Setup
+
+```bash
+# Backend
+npm install
+cp .env.example .env
+npx prisma migrate dev
+npx prisma db seed
+npm run start:dev
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### Environment Variables
+
+```env
+# Database
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/building_manager"
+
+# JWT
+JWT_SECRET="your-super-secret-jwt-key-change-in-production"
+JWT_EXPIRATION="24h"
+
+# Server
+PORT=3000
+NODE_ENV=development
+```
+
+---
+
+## 💻 Development Guide
+
+### Running Tests
+
+```bash
+# Unit tests
+npm run test
+
+# Property-based tests
+npm run test:property
+
+# All tests with coverage
+npm run test:cov
+```
+
+### Database Operations
+
+```bash
+# Open Prisma Studio (GUI)
 npx prisma studio
 
-# View database with psql
+# Generate client after schema changes
+npx prisma generate
+
+# Create migration
+npx prisma migrate dev --name <migration-name>
+
+# Reset database (DEV ONLY)
+npx prisma migrate reset
+
+# Push schema without migration
+npx prisma db push
+
+# Connect to PostgreSQL
 docker exec -it building-manager-postgres psql -U postgres -d building_manager
-
-# Backup database
-docker exec building-manager-postgres pg_dump -U postgres building_manager > backup.sql
-
-# Restore database
-docker exec -i building-manager-postgres psql -U postgres -d building_manager < backup.sql
 ```
 
-### Code Quality:
+### Code Quality
 
 ```bash
-# Lint code
+# Lint
 npm run lint
 
-# Format code
+# Format
 npm run format
 
 # Type check
 npm run build
 ```
 
-### Testing:
+### Adding New Features
 
-```bash
-# Unit tests
-npm run test
+1. **Database changes**: Update `prisma/schema.prisma`
+2. **Generate migration**: `npx prisma migrate dev --name <name>`
+3. **Create DTO**: Add to `src/<module>/dto/`
+4. **Create service method**: Add to `src/<module>/<module>.service.ts`
+5. **Create controller endpoint**: Add to `src/<module>/<module>.controller.ts`
+6. **Frontend API call**: Add to `frontend/src/services/endpoints.ts`
+7. **Frontend UI**: Add to appropriate page in `frontend/src/pages/`
 
-# E2E tests
-npm run test:e2e
+---
 
-# Test coverage
-npm run test:cov
+## 📐 Business Rules
+
+### Expense Distribution Calculation
+
+```typescript
+// For shared expenses (Κοινόχρηστο)
+apartmentCharge = (expenseAmount × apartmentShare) / totalActiveShares
+
+// For direct charges (Χρέωση σε διαμέρισμα)
+apartmentCharge = expenseAmount  // 100% to specified apartment
 ```
 
-## Deployment
+### Share Validation
 
-### Build Production:
+- Total shares across all apartments should sum to 100%
+- Each share type (common, elevator, heating, other) is tracked separately
+- Excluded apartments don't participate in calculations
 
-```bash
-npm run build
-npm run start:prod
-```
+### Period Workflow
 
-### Environment Variables:
+1. **DRAFT** - Period created, can add/edit expenses
+2. **CALCULATED** - Calculation run, can recalculate
+3. **LOCKED** - Period locked, no changes allowed
 
-See [.env.example](./.env.example) for required configuration:
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Secret key for JWT tokens
-- `JWT_EXPIRATION` - Token expiration time
-- `PORT` - API server port
-- `NODE_ENV` - Environment (development/production)
+### Rounding Strategy
 
-### Docker Deployment:
+- All amounts rounded to 2 decimal places
+- Rounding difference distributed proportionally to maintain total accuracy
+- Invariant: `sum(apartmentCharges) === totalExpenses`
 
-```bash
-# Build image
-docker build -t building-manager-api .
+### Date Rules
 
-# Run container
-docker run -p 3000:3000 --env-file .env building-manager-api
-```
+- Period start date < end date
+- Due date >= end date
+- Expense date must fall within period date range
 
-## Documentation
+---
 
-- **[QUICKSTART.md](./QUICKSTART.md)** - 5-minute setup guide
-- **[SETUP.md](./SETUP.md)** - Detailed installation & configuration
-- **[DATABASE_ARCHITECTURE.md](./DATABASE_ARCHITECTURE.md)** - Complete schema design (8000+ lines):
-  - Design decisions & rationale
-  - Index strategy & query patterns
-  - Risk analysis & mitigations
-  - Performance considerations
-  - Maintenance schedule
-  - GDPR compliance
-- **[DATABASE_SUMMARY.md](./DATABASE_SUMMARY.md)** - Quick reference:
-  - Model statistics
-  - Enum definitions
-  - Relationship matrix
-  - Index listing
-  - Query patterns
-- **[MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)** - Migration procedures:
-  - Pre-migration checklist
-  - Step-by-step instructions
-  - Verification queries
-  - Rollback strategies
-  - Troubleshooting
+## 📄 License
 
-## License
+UNLICENSED - Private project
 
-UNLICENSED
+---
+
+## 🔗 Additional Documentation
+
+- [Business Rules](./BUSINESS_RULES.md) - Detailed calculation rules
+- [Database Architecture](./DATABASE_ARCHITECTURE.md) - Schema design decisions
+- [Testing Strategy](./TESTING_STRATEGY.md) - Test patterns and coverage
+- [Migration Guide](./MIGRATION_GUIDE.md) - Database migration procedures

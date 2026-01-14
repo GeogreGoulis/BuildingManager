@@ -121,6 +121,24 @@ export interface ApartmentChargeBreakdownDto {
   
   /** Was apartment excluded? */
   wasExcluded: boolean;
+
+  /** Owner name (for display) */
+  ownerName?: string;
+
+  /** Square meters */
+  squareMeters?: number;
+
+  /** Common share */
+  shareCommon?: number;
+
+  /** Elevator share */
+  shareElevator?: number;
+
+  /** Heating share */
+  shareHeating?: number;
+
+  /** Other share */
+  shareOther?: number;
   
   /** Expense breakdowns */
   expenses: ExpenseBreakdownItemDto[];

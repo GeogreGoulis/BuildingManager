@@ -2,8 +2,10 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/AuthContext';
-import { buildingsApi, apartmentsApi, expensesApi } from '../../services/endpoints';
+import { buildingsApi, apartmentsApi, expensesApi, announcementsApi } from '../../services/endpoints';
 import { UserRole } from '../../types';
+import type { Announcement } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 export const DashboardPage: React.FC = () => {
   const { user, hasRole } = useAuth();
@@ -32,6 +34,13 @@ export const DashboardPage: React.FC = () => {
   const { data: expensesData, isLoading: loadingExpenses } = useQuery({
     queryKey: ['expenses', buildingId],
     queryFn: () => expensesApi.getAll(buildingId, { page: 1, limit: 100 }),
+    enabled: !!buildingId,
+  });
+
+  // Fetch announcements
+  const { data: announcements = [], isLoading: loadingAnnouncements } = useQuery({
+    queryKey: ['announcements', buildingId],
+    queryFn: () => announcementsApi.getAll(buildingId),
     enabled: !!buildingId,
   });
 
@@ -75,16 +84,12 @@ export const DashboardPage: React.FC = () => {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('el-GR');
-  };
-
   const currentPeriod = new Date().toLocaleDateString('el-GR', { 
     month: 'long', 
     year: 'numeric' 
   });
 
-  const isLoading = loadingBuildings || loadingApartments || loadingExpenses;
+  const isLoading = loadingBuildings || loadingApartments || loadingExpenses || loadingAnnouncements;
 
   // Recent expenses (last 5)
   const recentExpenses = [...expenses]
@@ -305,6 +310,67 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Announcements Board */}
+      <div className="bg-white rounded-lg shadow border border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-gray-900">📢 Ανακοινώσεις</h2>
+          <button 
+            onClick={() => navigate('/announcements')}
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          >
+            Προβολή όλων →
+          </button>
+        </div>
+        {announcements.length === 0 ? (
+          <div className="text-center text-gray-500 py-8">
+            <span className="text-4xl mb-3 block">📋</span>
+            <p>Δεν υπάρχουν ανακοινώσεις</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-8"></th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Τίτλος</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Περιεχόμενο</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ημερομηνία</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {[...announcements]
+                  .sort((a: Announcement, b: Announcement) => {
+                    if (a.isPinned && !b.isPinned) return -1;
+                    if (!a.isPinned && b.isPinned) return 1;
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                  })
+                  .slice(0, 6)
+                  .map((announcement: Announcement) => (
+                    <tr 
+                      key={announcement.id} 
+                      className={`hover:bg-gray-50 cursor-pointer ${announcement.isPinned ? 'bg-yellow-50' : ''}`}
+                      onClick={() => navigate('/announcements')}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {announcement.isPinned && <span>📌</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {announcement.title}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-md truncate">
+                        {announcement.content}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                        {formatDate(announcement.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -231,6 +231,7 @@ export class CommonChargesController {
 
   /**
    * Preview calculation for a period (draft mode - does not save)
+   * Uses the proper calculation service to respect direct charges and distribution methods
    */
   @Get('periods/:periodId/preview')
   @Roles(RoleName.SUPER_ADMIN, RoleName.BUILDING_ADMIN, RoleName.READ_ONLY)
@@ -238,88 +239,65 @@ export class CommonChargesController {
     @Param('buildingId') buildingId: string,
     @Param('periodId') periodId: string,
   ) {
-    const period = await this.prisma.commonChargePeriod.findFirst({
-      where: { id: periodId, buildingId },
-      include: { building: true },
-    });
-
-    if (!period) {
-      throw new Error('Period not found');
-    }
-
-    // Fetch apartments
-    const apartments = await this.prisma.apartment.findMany({
-      where: { buildingId, deletedAt: null },
-      include: { owner: { select: { firstName: true, lastName: true } } },
-    });
-
-    // Fetch expenses for this period
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        buildingId,
-        expenseDate: { gte: period.startDate, lte: period.endDate },
-        deletedAt: null,
+    // Use the proper calculation service (same as calculate endpoint, but don't persist)
+    const result = await this.commonChargesService.previewPeriod(periodId);
+    
+    // Transform to the expected preview format
+    const apartmentCharges = result.apartmentCharges.map((breakdown) => ({
+      apartmentId: breakdown.apartmentId,
+      apartmentNumber: breakdown.apartmentNumber,
+      floor: breakdown.floor,
+      ownerName: breakdown.ownerName,
+      squareMeters: breakdown.squareMeters,
+      shares: {
+        common: breakdown.shareCommon,
+        elevator: breakdown.shareElevator,
+        heating: breakdown.shareHeating,
+        other: breakdown.shareOther,
       },
-      include: { category: true },
-    });
+      estimatedCharge: breakdown.total,
+      expenses: breakdown.expenses,
+    }));
 
-    // Calculate totals by category
-    const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-    const expensesByCategory = expenses.reduce((acc: Record<string, number>, exp) => {
-      const catName = exp.category?.name || 'Χωρίς κατηγορία';
-      acc[catName] = (acc[catName] || 0) + Number(exp.amount);
+    // Calculate expenses by category
+    const expensesByCategory = result.categorySummaries.reduce((acc: Record<string, number>, cat) => {
+      acc[cat.categoryName] = cat.totalAmount;
       return acc;
     }, {});
 
-    // Calculate charges per apartment based on shares
-    const apartmentCharges = apartments.map((apt) => {
-      const shareCommon = Number(apt.shareCommon) / 100;
-      const shareElevator = Number(apt.shareElevator) / 100;
-      const shareHeating = Number(apt.shareHeating) / 100;
-      const shareOther = Number(apt.shareOther) / 100;
-
-      // Simple proportional distribution based on shares
-      const avgShare = (shareCommon + shareElevator + shareOther) / 3 || 0;
-      const estimatedCharge = totalExpenses * avgShare;
-
-      return {
-        apartmentId: apt.id,
-        apartmentNumber: apt.number,
-        floor: apt.floor,
-        ownerName: apt.owner ? `${apt.owner.firstName} ${apt.owner.lastName}` : 'Χωρίς ιδιοκτήτη',
-        squareMeters: Number(apt.squareMeters),
-        shares: {
-          common: Number(apt.shareCommon),
-          elevator: Number(apt.shareElevator),
-          heating: Number(apt.shareHeating),
-          other: Number(apt.shareOther),
-        },
-        estimatedCharge,
-      };
-    });
-
     return {
       period: {
-        id: period.id,
-        name: period.name,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        dueDate: period.dueDate,
+        id: result.metadata.periodId,
+        name: '', // Not available in output
+        startDate: null, // Not available in output
+        endDate: null, // Not available in output
+        dueDate: null, // Not available in output
       },
       summary: {
-        totalExpenses,
-        expenseCount: expenses.length,
-        apartmentCount: apartments.length,
+        totalExpenses: result.totalExpenses,
+        expenseCount: result.categorySummaries.reduce((sum, cat) => sum + cat.expenseCount, 0),
+        apartmentCount: apartmentCharges.length,
         expensesByCategory,
       },
       apartmentCharges,
-      expenses: expenses.map((exp) => ({
-        id: exp.id,
-        description: exp.description,
-        amount: Number(exp.amount),
-        category: exp.category?.name || 'Χωρίς κατηγορία',
-        date: exp.expenseDate,
-      })),
+      // Collect unique expenses from all apartment breakdowns
+      expenses: Array.from(
+        result.apartmentCharges
+          .flatMap((apt) => apt.expenses)
+          .reduce((map, exp) => {
+            if (!map.has(exp.expenseId)) {
+              map.set(exp.expenseId, {
+                id: exp.expenseId,
+                description: exp.description,
+                amount: exp.totalAmount,
+                category: exp.categoryName,
+                date: null,
+              });
+            }
+            return map;
+          }, new Map<string, any>())
+          .values()
+      ),
     };
   }
 

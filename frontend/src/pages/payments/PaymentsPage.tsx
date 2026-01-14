@@ -4,6 +4,7 @@ import { paymentsApi, buildingsApi, apartmentsApi } from '../../services/endpoin
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
 import type { Building, Apartment } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 interface PaymentFormData {
   apartmentId: string;
@@ -27,6 +28,7 @@ export const PaymentsPage: React.FC = () => {
   const { user, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
   const [formData, setFormData] = useState<PaymentFormData>(initialFormData);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(user?.buildingId || '');
 
@@ -75,6 +77,18 @@ export const PaymentsPage: React.FC = () => {
     },
   });
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => paymentsApi.update(buildingId, id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payments', buildingId] });
+      handleCloseModal();
+    },
+    onError: (error) => {
+      console.error('Update payment error:', error);
+    },
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) => paymentsApi.delete(buildingId, id),
@@ -84,12 +98,27 @@ export const PaymentsPage: React.FC = () => {
   });
 
   const handleOpenModal = () => {
+    setEditingPayment(null);
     setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const handleEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setFormData({
+      apartmentId: payment.apartmentId || '',
+      amount: payment.amount?.toString() || '',
+      paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      paymentMethod: payment.paymentMethod || 'CASH',
+      reference: payment.reference || '',
+      notes: payment.notes || '',
+    });
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingPayment(null);
     setFormData(initialFormData);
   };
 
@@ -110,7 +139,11 @@ export const PaymentsPage: React.FC = () => {
       notes: formData.notes || undefined,
     };
 
-    createMutation.mutate(paymentData);
+    if (editingPayment) {
+      updateMutation.mutate({ id: editingPayment.id, data: paymentData });
+    } else {
+      createMutation.mutate(paymentData);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -223,7 +256,7 @@ export const PaymentsPage: React.FC = () => {
                     €{parseFloat(payment.amount).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(payment.paymentDate).toLocaleDateString('el-GR')}
+                    {formatDate(payment.paymentDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatPaymentMethod(payment.paymentMethod)}
@@ -233,6 +266,13 @@ export const PaymentsPage: React.FC = () => {
                   </td>
                   {canWrite && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => handleEditPayment(payment)}
+                        className="text-blue-600 hover:text-blue-800 mr-3"
+                        title="Επεξεργασία"
+                      >
+                        ✏️
+                      </button>
                       <button
                         onClick={() => handleDelete(payment.id)}
                         className="text-red-600 hover:text-red-800"
@@ -249,11 +289,11 @@ export const PaymentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Payment Modal */}
+      {/* Create/Edit Payment Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Νέα Πληρωμή</h2>
+            <h2 className="text-xl font-bold mb-4">{editingPayment ? 'Επεξεργασία Πληρωμής' : 'Νέα Πληρωμή'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -351,10 +391,10 @@ export const PaymentsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || updateMutation.isPending}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
                 >
-                  {createMutation.isPending ? 'Αποθήκευση...' : 'Αποθήκευση'}
+                  {(createMutation.isPending || updateMutation.isPending) ? 'Αποθήκευση...' : 'Αποθήκευση'}
                 </button>
               </div>
             </form>

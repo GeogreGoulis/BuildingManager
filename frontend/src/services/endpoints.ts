@@ -143,7 +143,7 @@ export const expensesApi = {
     apiClient.post<Expense>(`/buildings/${buildingId}/expenses`, data),
 
   update: (buildingId: string, id: string, data: Partial<Expense>) =>
-    apiClient.put<Expense>(`/buildings/${buildingId}/expenses/${id}`, data),
+    apiClient.patch<Expense>(`/buildings/${buildingId}/expenses/${id}`, data),
 
   delete: (buildingId: string, id: string) =>
     apiClient.delete(`/buildings/${buildingId}/expenses/${id}`),
@@ -186,6 +186,9 @@ export const paymentsApi = {
   create: (buildingId: string, data: Partial<Payment>) =>
     apiClient.post<Payment>(`/buildings/${buildingId}/payments`, data),
 
+  update: (buildingId: string, id: string, data: Partial<Payment>) =>
+    apiClient.patch<Payment>(`/buildings/${buildingId}/payments/${id}`, data),
+
   delete: (buildingId: string, id: string) =>
     apiClient.delete(`/buildings/${buildingId}/payments/${id}`),
 };
@@ -195,16 +198,30 @@ export const documentsApi = {
   getAll: (buildingId: string) =>
     apiClient.get<Document[]>(`/buildings/${buildingId}/documents`),
 
-  upload: (buildingId: string, file: File, title: string, description?: string) => {
+  upload: (buildingId: string, file: File, title: string, category: string, description?: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
+    formData.append('category', category);
     if (description) formData.append('description', description);
 
     return apiClient.post<Document>(`/buildings/${buildingId}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  update: (buildingId: string, id: string, data: { name?: string; category?: string }) =>
+    apiClient.patch<Document>(`/buildings/${buildingId}/documents/${id}`, data),
+
+  download: (buildingId: string, id: string) =>
+    apiClient.get(`/buildings/${buildingId}/documents/${id}/download`, {
+      responseType: 'blob',
+    }),
+
+  downloadMultiple: (buildingId: string, ids: string[]) =>
+    apiClient.post(`/buildings/${buildingId}/documents/download-zip`, { ids }, {
+      responseType: 'blob',
+    }),
 
   delete: (buildingId: string, id: string) =>
     apiClient.delete(`/buildings/${buildingId}/documents/${id}`),
@@ -219,7 +236,7 @@ export const announcementsApi = {
     apiClient.post<Announcement>(`/buildings/${buildingId}/announcements`, data),
 
   update: (buildingId: string, id: string, data: Partial<Announcement>) =>
-    apiClient.put<Announcement>(`/buildings/${buildingId}/announcements/${id}`, data),
+    apiClient.patch<Announcement>(`/buildings/${buildingId}/announcements/${id}`, data),
 
   delete: (buildingId: string, id: string) =>
     apiClient.delete(`/buildings/${buildingId}/announcements/${id}`),

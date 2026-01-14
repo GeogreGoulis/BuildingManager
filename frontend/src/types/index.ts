@@ -84,6 +84,9 @@ export interface Expense {
   invoiceNumber?: string;
   vendor?: string;
   notes?: string;
+  isDirectCharge?: boolean;
+  chargedApartmentId?: string;
+  chargedApartment?: Apartment;
   createdAt: string;
   updatedAt: string;
 }

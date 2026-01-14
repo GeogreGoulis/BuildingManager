@@ -58,6 +58,12 @@ export interface ExpenseItemDto {
   
   /** Description for audit trail */
   description: string;
+  
+  /** Is this a direct charge to a specific apartment? */
+  isDirectCharge?: boolean;
+  
+  /** The apartment ID to charge directly (if isDirectCharge=true) */
+  chargedApartmentId?: string | null;
 }
 
 /**
@@ -84,6 +90,24 @@ export interface ApartmentDto {
   
   /** Is apartment excluded from this period */
   isExcluded: boolean;
+
+  /** Owner name (for display) */
+  ownerName?: string;
+
+  /** Square meters */
+  squareMeters?: number;
+
+  /** Common share */
+  shareCommon?: number;
+
+  /** Elevator share */
+  shareElevator?: number;
+
+  /** Heating share */
+  shareHeating?: number;
+
+  /** Other share */
+  shareOther?: number;
 }
 
 /**

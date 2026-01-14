@@ -4,6 +4,7 @@ import { documentsApi, buildingsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
 import type { Building } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 interface DocumentFormData {
   title: string;
@@ -24,8 +25,12 @@ export const DocumentsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<any>(null);
   const [formData, setFormData] = useState<DocumentFormData>(initialFormData);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(user?.buildingId || '');
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const canWrite = hasRole([UserRole.SUPER_ADMIN, UserRole.BUILDING_ADMIN]);
   const isSuperAdmin = hasRole([UserRole.SUPER_ADMIN]);
@@ -55,14 +60,29 @@ export const DocumentsPage: React.FC = () => {
 
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: ({ file, title, description }: { file: File; title: string; description?: string }) =>
-      documentsApi.upload(buildingId, file, title, description),
+    mutationFn: ({ file, title, category, description }: { file: File; title: string; category: string; description?: string }) =>
+      documentsApi.upload(buildingId, file, title, category, description),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', buildingId] });
       handleCloseModal();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Upload document error:', error);
+      const message = error.response?.data?.message || error.message || 'Σφάλμα ανεβάσματος αρχείου';
+      alert(message);
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; category?: string } }) =>
+      documentsApi.update(buildingId, id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents', buildingId] });
+      handleCloseEditModal();
+    },
+    onError: (error) => {
+      console.error('Update document error:', error);
     },
   });
 
@@ -103,7 +123,36 @@ export const DocumentsPage: React.FC = () => {
     uploadMutation.mutate({
       file: formData.file,
       title: formData.title,
+      category: formData.category,
       description: formData.description || undefined,
+    });
+  };
+
+  const handleOpenEditModal = (doc: any) => {
+    setEditingDocument({
+      ...doc,
+      name: doc.name,
+      category: doc.category,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingDocument(null);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingDocument) return;
+
+    updateMutation.mutate({
+      id: editingDocument.id,
+      data: {
+        name: editingDocument.name,
+        category: editingDocument.category,
+      },
     });
   };
 
@@ -139,6 +188,121 @@ export const DocumentsPage: React.FC = () => {
     return '📄';
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && documents) {
+      setSelectedDocuments(new Set(documents.map((doc: any) => doc.id)));
+    } else {
+      setSelectedDocuments(new Set());
+    }
+  };
+
+  const handleSelectDocument = (id: string, checked: boolean) => {
+    const newSelected = new Set(selectedDocuments);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedDocuments(newSelected);
+  };
+
+  const handleDownloadSingle = async (doc: any) => {
+    try {
+      setIsDownloading(true);
+      
+      // Get the token for authenticated download
+      const token = localStorage.getItem('accessToken');
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+      const downloadUrl = `${apiBaseUrl}/buildings/${buildingId}/documents/${doc.id}/download`;
+      
+      // Use fetch with authorization header
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Download failed' }));
+        throw new Error(error.message || 'Download failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      console.error('Download error:', error);
+      let errorMessage = error.message || 'Σφάλμα κατά τη λήψη του αρχείου';
+      if (errorMessage === 'File not found on disk') {
+        errorMessage = 'Το αρχείο δεν βρέθηκε στον διακομιστή. Παρακαλώ ανεβάστε το ξανά.';
+      }
+      alert(errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    if (selectedDocuments.size === 0) return;
+
+    try {
+      setIsDownloading(true);
+      
+      if (selectedDocuments.size === 1) {
+        // Download single file
+        const docId = Array.from(selectedDocuments)[0];
+        const doc = documents?.find((d: any) => d.id === docId);
+        if (doc) {
+          await handleDownloadSingle(doc);
+        }
+      } else {
+        // Download multiple as ZIP
+        const token = localStorage.getItem('accessToken');
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+        const downloadUrl = `${apiBaseUrl}/buildings/${buildingId}/documents/download-zip`;
+        
+        const response = await fetch(downloadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids: Array.from(selectedDocuments) }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ message: 'Download failed' }));
+          throw new Error(error.message || 'Download failed');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `documents_${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+      
+      setSelectedDocuments(new Set());
+    } catch (error: any) {
+      console.error('Download error:', error);
+      const errorMessage = error.message || 'Σφάλμα κατά τη λήψη των αρχείων';
+      alert(errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (!buildingId && !isSuperAdmin) {
     return (
       <div className="p-6">
@@ -156,14 +320,25 @@ export const DocumentsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Έγγραφα</h1>
           <p className="text-gray-600">Διαχείριση εγγράφων κτιρίου</p>
         </div>
-        {canWrite && (
-          <button
-            onClick={handleOpenModal}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            + Νέο Έγγραφο
-          </button>
-        )}
+        <div className="flex space-x-2">
+          {selectedDocuments.size > 0 && (
+            <button
+              onClick={handleDownloadSelected}
+              disabled={isDownloading}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:bg-green-400"
+            >
+              {isDownloading ? 'Λήψη...' : `⬇️ Λήψη (${selectedDocuments.size})`}
+            </button>
+          )}
+          {canWrite && (
+            <button
+              onClick={handleOpenModal}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              + Νέο Έγγραφο
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Building selector for super admins */}
@@ -184,7 +359,7 @@ export const DocumentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Documents Grid */}
+      {/* Documents Table */}
       {isLoading ? (
         <div className="text-center py-8">Φόρτωση...</div>
       ) : isError ? (
@@ -194,39 +369,99 @@ export const DocumentsPage: React.FC = () => {
           Δεν υπάρχουν έγγραφα. {canWrite && 'Πατήστε "Νέο Έγγραφο" για να προσθέσετε.'}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documents.map((doc: any) => (
-            <div key={doc.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-3xl">{getFileIcon(doc.mimeType)}</span>
-                  <div>
-                    <h3 className="font-medium text-gray-900 truncate max-w-[200px]" title={doc.name}>
-                      {doc.name}
-                    </h3>
-                    <p className="text-sm text-gray-500">{formatFileSize(doc.size)}</p>
-                  </div>
-                </div>
-                {canWrite && (
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="text-red-500 hover:text-red-700"
-                    title="Διαγραφή"
-                  >
-                    🗑️
-                  </button>
-                )}
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">{formatCategory(doc.category)}</span>
-                  <span className="text-gray-400">
-                    {new Date(doc.createdAt).toLocaleDateString('el-GR')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={documents.length > 0 && selectedDocuments.size === documents.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Τύπος
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Όνομα
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Κατηγορία
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Μέγεθος
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ημερομηνία
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ενέργειες
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {documents.map((doc: any) => (
+                <tr key={doc.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedDocuments.has(doc.id)}
+                      onChange={(e) => handleSelectDocument(doc.id, e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-2xl">
+                    {getFileIcon(doc.mimeType)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{doc.name}</div>
+                    {doc.description && (
+                      <div className="text-sm text-gray-500 truncate max-w-xs">{doc.description}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {formatCategory(doc.category)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {formatFileSize(doc.size)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {formatDate(doc.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right space-x-2">
+                    <button
+                      onClick={() => handleDownloadSingle(doc)}
+                      disabled={isDownloading}
+                      className="text-blue-600 hover:text-blue-800 disabled:text-blue-400"
+                      title="Λήψη"
+                    >
+                      ⬇️
+                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          onClick={() => handleOpenEditModal(doc)}
+                          className="text-yellow-600 hover:text-yellow-800"
+                          title="Επεξεργασία"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(doc.id)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Διαγραφή"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -298,6 +533,60 @@ export const DocumentsPage: React.FC = () => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
                 >
                   {uploadMutation.isPending ? 'Ανέβασμα...' : 'Ανέβασμα'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Document Modal */}
+      {isEditModalOpen && editingDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Επεξεργασία Εγγράφου</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Όνομα *</label>
+                <input
+                  type="text"
+                  value={editingDocument.name}
+                  onChange={(e) => setEditingDocument({ ...editingDocument, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Κατηγορία</label>
+                <select
+                  value={editingDocument.category}
+                  onChange={(e) => setEditingDocument({ ...editingDocument, category: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="INVOICE">Τιμολόγιο</option>
+                  <option value="CONTRACT">Συμβόλαιο</option>
+                  <option value="RECEIPT">Απόδειξη</option>
+                  <option value="MINUTES">Πρακτικά</option>
+                  <option value="REPORT">Αναφορά</option>
+                  <option value="OTHER">Άλλο</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseEditModal}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
+                >
+                  {updateMutation.isPending ? 'Αποθήκευση...' : 'Αποθήκευση'}
                 </button>
               </div>
             </form>

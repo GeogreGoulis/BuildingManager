@@ -131,6 +131,8 @@ export class CommonChargesService {
           exp.category?.name || 'OTHER',
         ),
         description: exp.description,
+        isDirectCharge: exp.isDirectCharge || false,
+        chargedApartmentId: exp.chargedApartmentId || null,
       })),
       heatingConsumptions,
       settings: {
@@ -150,6 +152,108 @@ export class CommonChargesService {
     await this.persistenceService.storeCalculation(output, userId);
 
     return output;
+  }
+
+  /**
+   * Preview calculation for a period (does not save)
+   * This uses the same calculation logic as calculatePeriod but doesn't persist results.
+   */
+  async previewPeriod(periodId: string): Promise<CalculationOutputDto> {
+    this.logger.log(`Preview calculation for period ${periodId}`);
+
+    // Fetch period data
+    const period = await this.prisma.commonChargePeriod.findUnique({
+      where: { id: periodId },
+      include: {
+        building: true,
+      },
+    });
+
+    if (!period) {
+      throw new Error(`Period ${periodId} not found`);
+    }
+
+    // Fetch apartments with owner info
+    const apartments = await this.prisma.apartment.findMany({
+      where: {
+        buildingId: period.buildingId,
+        deletedAt: null,
+      },
+      include: {
+        owner: {
+          select: { firstName: true, lastName: true },
+        },
+      },
+    });
+
+    // Fetch expenses for this period
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        buildingId: period.buildingId,
+        expenseDate: {
+          gte: period.startDate,
+          lte: period.endDate,
+        },
+        deletedAt: null,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    this.logger.log(`Found ${expenses.length} expenses for preview`);
+    expenses.forEach(exp => {
+      this.logger.log(`Expense ${exp.id}: isDirectCharge=${exp.isDirectCharge}, chargedApartmentId=${exp.chargedApartmentId}`);
+    });
+
+    // Build input DTO
+    const input: CalculationInputDto = {
+      periodId: period.id,
+      buildingId: period.buildingId,
+      period: {
+        month: period.startDate.getMonth() + 1,
+        year: period.startDate.getFullYear(),
+      },
+      apartments: apartments.map((apt) => ({
+        id: apt.id,
+        number: apt.number,
+        floor: String(apt.floor),
+        sharePercentage: Number(apt.shareCommon),
+        heatingSharePercentage: Number(apt.shareHeating),
+        isOccupied: apt.isOccupied,
+        isExcluded: false,
+        ownerName: apt.owner ? `${apt.owner.firstName} ${apt.owner.lastName}` : 'Χωρίς ιδιοκτήτη',
+        squareMeters: Number(apt.squareMeters),
+        shareCommon: Number(apt.shareCommon),
+        shareElevator: Number(apt.shareElevator),
+        shareHeating: Number(apt.shareHeating),
+        shareOther: Number(apt.shareOther),
+      })),
+      expenses: expenses.map((exp) => ({
+        id: exp.id,
+        categoryId: exp.categoryId || 'other',
+        categoryName: exp.category?.name || 'Other',
+        amount: Number(exp.amount),
+        distributionMethod: this.mapCategoryToDistributionMethod(
+          exp.category?.name || 'OTHER',
+        ),
+        description: exp.description,
+        isDirectCharge: exp.isDirectCharge || false,
+        chargedApartmentId: exp.chargedApartmentId || null,
+      })),
+      heatingConsumptions: [],
+      settings: {
+        decimalPlaces: 2,
+        roundingStrategy: 'DISTRIBUTE',
+        reserveFundPercentage: 0,
+        reserveFundDistribution: DistributionMethod.GENERAL_SHARE,
+        defaultVatPercentage: 24,
+      },
+      previousBalances: {},
+    };
+
+    // Calculate (but don't persist)
+    return this.calculationService.calculate(input);
   }
 
   /**

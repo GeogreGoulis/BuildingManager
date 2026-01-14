@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { commonChargesApi, buildingsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 interface PeriodFormData {
   name: string;
@@ -42,9 +43,52 @@ export const CommonChargesPage: React.FC = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(user?.buildingId || '');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<PeriodFormData>(getDefaultFormData());
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [viewingPeriod, setViewingPeriod] = useState<any | null>(null);
   const [editingPeriod, setEditingPeriod] = useState<any | null>(null);
   const [previewData, setPreviewData] = useState<any | null>(null);
+
+  // Validate form data
+  const validateForm = (data: PeriodFormData): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    
+    if (!data.name.trim()) {
+      errors.name = 'Το όνομα περιόδου είναι υποχρεωτικό';
+    }
+    
+    if (!data.startDate) {
+      errors.startDate = 'Η ημερομηνία έναρξης είναι υποχρεωτική';
+    }
+    
+    if (!data.endDate) {
+      errors.endDate = 'Η ημερομηνία λήξης είναι υποχρεωτική';
+    }
+    
+    if (!data.dueDate) {
+      errors.dueDate = 'Η προθεσμία πληρωμής είναι υποχρεωτική';
+    }
+    
+    // Date validation rules
+    if (data.startDate && data.endDate) {
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      
+      if (start > end) {
+        errors.startDate = 'Η ημερομηνία έναρξης δεν μπορεί να είναι μεταγενέστερη της ημερομηνίας λήξης';
+      }
+    }
+    
+    if (data.endDate && data.dueDate) {
+      const end = new Date(data.endDate);
+      const due = new Date(data.dueDate);
+      
+      if (due < end) {
+        errors.dueDate = 'Η προθεσμία πληρωμής δεν μπορεί να είναι πριν την ημερομηνία λήξης';
+      }
+    }
+    
+    return errors;
+  };
 
   // For super admins, fetch buildings to allow selection
   const { data: buildings = [] } = useQuery({
@@ -172,6 +216,7 @@ export const CommonChargesPage: React.FC = () => {
       endDate: new Date(period.endDate).toISOString().split('T')[0],
       dueDate: new Date(period.dueDate).toISOString().split('T')[0],
     });
+    setFormErrors({});
     setEditingPeriod(period);
   };
 
@@ -187,7 +232,10 @@ export const CommonChargesPage: React.FC = () => {
 
   const handleUpdateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingPeriod) {
+    const errors = validateForm(formData);
+    setFormErrors(errors);
+    
+    if (Object.keys(errors).length === 0 && editingPeriod) {
       updateMutation.mutate({ periodId: editingPeriod.id, data: formData });
     }
   };
@@ -195,21 +243,29 @@ export const CommonChargesPage: React.FC = () => {
   const handleCloseEditModal = () => {
     setEditingPeriod(null);
     setFormData(getDefaultFormData());
+    setFormErrors({});
   };
 
   const handleOpenModal = () => {
     setFormData(getDefaultFormData());
+    setFormErrors({});
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setFormData(getDefaultFormData());
+    setFormErrors({});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    const errors = validateForm(formData);
+    setFormErrors(errors);
+    
+    if (Object.keys(errors).length === 0) {
+      createMutation.mutate(formData);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -387,14 +443,10 @@ export const CommonChargesPage: React.FC = () => {
                       {formatCurrency(period.totalExpenses)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {period.calculatedAt
-                        ? new Date(period.calculatedAt).toLocaleDateString('el-GR')
-                        : '-'}
+                      {formatDate(period.calculatedAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {period.lockedAt
-                        ? new Date(period.lockedAt).toLocaleDateString('el-GR')
-                        : '-'}
+                      {formatDate(period.lockedAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium no-print">
                       <div className="flex justify-end space-x-2">
@@ -511,11 +563,19 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    if (formErrors.name) setFormErrors({ ...formErrors, name: '' });
+                  }}
                   required
                   placeholder="π.χ. Ιανουάριος 2026"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.name && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
+                )}
               </div>
 
               <div>
@@ -525,10 +585,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, startDate: e.target.value });
+                    if (formErrors.startDate) setFormErrors({ ...formErrors, startDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.startDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.startDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.startDate}</p>
+                )}
               </div>
 
               <div>
@@ -538,10 +606,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, endDate: e.target.value });
+                    if (formErrors.endDate) setFormErrors({ ...formErrors, endDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.endDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.endDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.endDate}</p>
+                )}
               </div>
 
               <div>
@@ -551,10 +627,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, dueDate: e.target.value });
+                    if (formErrors.dueDate) setFormErrors({ ...formErrors, dueDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.dueDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.dueDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.dueDate}</p>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -609,15 +693,15 @@ export const CommonChargesPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
                   <p className="text-sm text-gray-500">Ημ/νία Έναρξης</p>
-                  <p className="font-medium">{new Date(viewingPeriod.startDate).toLocaleDateString('el-GR')}</p>
+                  <p className="font-medium">{formatDate(viewingPeriod.startDate)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Ημ/νία Λήξης</p>
-                  <p className="font-medium">{new Date(viewingPeriod.endDate).toLocaleDateString('el-GR')}</p>
+                  <p className="font-medium">{formatDate(viewingPeriod.endDate)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Προθεσμία Πληρωμής</p>
-                  <p className="font-medium">{new Date(viewingPeriod.dueDate).toLocaleDateString('el-GR')}</p>
+                  <p className="font-medium">{formatDate(viewingPeriod.dueDate)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Έκδοση</p>
@@ -645,19 +729,13 @@ export const CommonChargesPage: React.FC = () => {
                 <div>
                   <p className="text-gray-500">Ημ/νία Υπολογισμού</p>
                   <p className="font-medium">
-                    {viewingPeriod.calculatedAt 
-                      ? new Date(viewingPeriod.calculatedAt).toLocaleDateString('el-GR')
-                      : '-'
-                    }
+                    {formatDate(viewingPeriod.calculatedAt)}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Ημ/νία Κλειδώματος</p>
                   <p className="font-medium">
-                    {viewingPeriod.lockedAt 
-                      ? new Date(viewingPeriod.lockedAt).toLocaleDateString('el-GR')
-                      : '-'
-                    }
+                    {formatDate(viewingPeriod.lockedAt)}
                   </p>
                 </div>
               </div>
@@ -722,10 +800,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    if (formErrors.name) setFormErrors({ ...formErrors, name: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.name && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
+                )}
               </div>
 
               <div>
@@ -735,10 +821,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, startDate: e.target.value });
+                    if (formErrors.startDate) setFormErrors({ ...formErrors, startDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.startDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.startDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.startDate}</p>
+                )}
               </div>
 
               <div>
@@ -748,10 +842,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, endDate: e.target.value });
+                    if (formErrors.endDate) setFormErrors({ ...formErrors, endDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.endDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.endDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.endDate}</p>
+                )}
               </div>
 
               <div>
@@ -761,10 +863,18 @@ export const CommonChargesPage: React.FC = () => {
                 <input
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, dueDate: e.target.value });
+                    if (formErrors.dueDate) setFormErrors({ ...formErrors, dueDate: '' });
+                  }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.dueDate ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {formErrors.dueDate && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.dueDate}</p>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -894,7 +1004,7 @@ export const CommonChargesPage: React.FC = () => {
                             <td className="px-4 py-2 text-sm text-gray-900">{exp.description}</td>
                             <td className="px-4 py-2 text-sm text-gray-600">{exp.category}</td>
                             <td className="px-4 py-2 text-sm text-gray-600">
-                              {new Date(exp.date).toLocaleDateString('el-GR')}
+                              {formatDate(exp.date)}
                             </td>
                             <td className="px-4 py-2 text-sm font-medium text-gray-900 text-right">
                               {formatCurrency(exp.amount)}

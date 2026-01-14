@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { expensesApi, expenseCategoriesApi, buildingsApi } from '../../services/endpoints';
+import { expensesApi, expenseCategoriesApi, buildingsApi, apartmentsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
-import type { Expense, ExpenseCategory, Building } from '../../types';
+import type { Expense, ExpenseCategory, Building, Apartment } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 interface ExpenseFormData {
   categoryId: string;
@@ -13,6 +14,9 @@ interface ExpenseFormData {
   invoiceNumber: string;
   notes: string;
   isPaid: boolean;
+  shareType: string;
+  chargeType: 'shared' | 'direct';
+  chargedApartmentId: string;
 }
 
 const initialFormData: ExpenseFormData = {
@@ -23,7 +27,19 @@ const initialFormData: ExpenseFormData = {
   invoiceNumber: '',
   notes: '',
   isPaid: false,
+  shareType: 'COMMON',
+  chargeType: 'shared',
+  chargedApartmentId: '',
 };
+
+const shareTypeOptions = [
+  { value: 'COMMON', label: 'Κοινόχρηστα' },
+  { value: 'ELEVATOR', label: 'Ανελκυστήρας' },
+  { value: 'HEATING', label: 'Θέρμανση' },
+  { value: 'SPECIAL', label: 'Ειδικά έξοδα' },
+  { value: 'OWNER', label: 'Έξοδα ιδιοκτητών' },
+  { value: 'OTHER', label: 'Λοιπά έξοδα' },
+];
 
 export const ExpensesPage: React.FC = () => {
   const { user, hasRole } = useAuth();
@@ -53,6 +69,14 @@ export const ExpensesPage: React.FC = () => {
     queryFn: expenseCategoriesApi.getAll,
   });
   const categories: ExpenseCategory[] = Array.isArray(categoriesData) ? categoriesData : [];
+
+  // Fetch apartments for the building
+  const { data: apartmentsData } = useQuery({
+    queryKey: ['apartments', buildingId],
+    queryFn: () => apartmentsApi.getAll(buildingId),
+    enabled: !!buildingId,
+  });
+  const apartments: Apartment[] = Array.isArray(apartmentsData) ? apartmentsData : [];
 
   // Fetch expenses
   const { data, isLoading, isError } = useQuery({
@@ -105,6 +129,9 @@ export const ExpensesPage: React.FC = () => {
         invoiceNumber: expense.invoiceNumber || '',
         notes: expense.notes || '',
         isPaid: expense.isPaid || false,
+        shareType: expense.shareType || 'COMMON',
+        chargeType: expense.isDirectCharge ? 'direct' : 'shared',
+        chargedApartmentId: expense.chargedApartmentId || '',
       });
     } else {
       setEditingExpense(null);
@@ -126,6 +153,8 @@ export const ExpensesPage: React.FC = () => {
       console.error('No building selected');
       return;
     }
+
+    const isDirectCharge = formData.chargeType === 'direct';
     
     const expenseData = {
       categoryId: formData.categoryId,
@@ -135,6 +164,9 @@ export const ExpensesPage: React.FC = () => {
       invoiceNumber: formData.invoiceNumber || undefined,
       notes: formData.notes || undefined,
       isPaid: formData.isPaid,
+      shareType: isDirectCharge ? undefined : formData.shareType,
+      isDirectCharge,
+      chargedApartmentId: isDirectCharge && formData.chargedApartmentId ? formData.chargedApartmentId : undefined,
     };
 
     console.log('Submitting expense:', expenseData, 'to building:', buildingId);
@@ -157,10 +189,6 @@ export const ExpensesPage: React.FC = () => {
       style: 'currency',
       currency: 'EUR',
     }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('el-GR');
   };
 
   if (isLoading) {
@@ -258,6 +286,9 @@ export const ExpensesPage: React.FC = () => {
                   Περιγραφή
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Επιμερισμός
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Αρ. Τιμολογίου
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -274,7 +305,7 @@ export const ExpensesPage: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                     Δεν βρέθηκαν έξοδα
                   </td>
                 </tr>
@@ -289,6 +320,15 @@ export const ExpensesPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {expense.description}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {expense.isDirectCharge ? (
+                        <span className="text-orange-600">
+                          Διαμ. {apartments.find(a => a.id === expense.chargedApartmentId)?.number || expense.chargedApartmentId}
+                        </span>
+                      ) : (
+                        shareTypeOptions.find(o => o.value === expense.shareType)?.label || 'Κοινόχρηστα'
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {expense.invoiceNumber || '-'}
@@ -464,6 +504,71 @@ export const ExpensesPage: React.FC = () => {
                     Πληρωμένο
                   </label>
                 </div>
+
+                {/* Charge Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Τύπος Χρέωσης *
+                  </label>
+                  <select
+                    required
+                    value={formData.chargeType}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      chargeType: e.target.value as 'shared' | 'direct',
+                      chargedApartmentId: e.target.value === 'shared' ? '' : formData.chargedApartmentId
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="shared">Κοινόχρηστο</option>
+                    <option value="direct">Χρέωση σε διαμέρισμα</option>
+                  </select>
+                </div>
+
+                {/* Charged Apartment - only show when direct charge is selected */}
+                {formData.chargeType === 'direct' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Διαμέρισμα *
+                    </label>
+                    <select
+                      required
+                      value={formData.chargedApartmentId}
+                      onChange={(e) => setFormData({ ...formData, chargedApartmentId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="">-- Επιλέξτε Διαμέρισμα --</option>
+                      {apartments
+                        .sort((a, b) => a.number.localeCompare(b.number, 'el', { numeric: true }))
+                        .map((apt) => (
+                          <option key={apt.id} value={apt.id}>
+                            {apt.number} (Όροφος {apt.floor})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Share Type - only show when shared charge is selected */}
+                {formData.chargeType === 'shared' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Τύπος Επιμερισμού *
+                    </label>
+                    <select
+                      required
+                      value={formData.shareType}
+                      onChange={(e) => setFormData({ ...formData, shareType: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      {shareTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Invoice Number */}
                 <div>

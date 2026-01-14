@@ -4,6 +4,7 @@ import { announcementsApi, buildingsApi } from '../../services/endpoints';
 import { useAuth } from '../../app/AuthContext';
 import { UserRole } from '../../types';
 import type { Building } from '../../types';
+import { formatDate } from '../../utils/dateFormat';
 
 interface AnnouncementFormData {
   title: string;
@@ -224,13 +225,7 @@ export const AnnouncementsPage: React.FC = () => {
                   </div>
                   <p className="text-gray-600 whitespace-pre-wrap">{announcement.content}</p>
                   <div className="mt-3 text-sm text-gray-400">
-                    {new Date(announcement.createdAt).toLocaleDateString('el-GR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatDate(announcement.createdAt)}
                   </div>
                 </div>
                 {canWrite && (

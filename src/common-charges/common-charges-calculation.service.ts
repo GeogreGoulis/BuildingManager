@@ -72,6 +72,12 @@ export class CommonChargesCalculationService {
         sharePercentage: apartment.sharePercentage,
         heatingSharePercentage: apartment.heatingSharePercentage,
         wasExcluded: false,
+        ownerName: apartment.ownerName,
+        squareMeters: apartment.squareMeters,
+        shareCommon: apartment.shareCommon,
+        shareElevator: apartment.shareElevator,
+        shareHeating: apartment.shareHeating,
+        shareOther: apartment.shareOther,
         expenses: [],
         previousBalance: input.previousBalances?.[apartment.id] || 0,
         subtotal: 0,
@@ -198,6 +204,43 @@ export class CommonChargesCalculationService {
     apartmentCharges: Map<string, ApartmentChargeBreakdownDto>,
     input: CalculationInputDto,
   ): void {
+    this.logger.log(`Processing expense ${expense.id}: isDirectCharge=${expense.isDirectCharge}, chargedApartmentId=${expense.chargedApartmentId}`);
+    
+    // Handle direct charge to specific apartment
+    if (expense.isDirectCharge && expense.chargedApartmentId) {
+      this.logger.log(`Direct charge detected for expense ${expense.id} to apartment ${expense.chargedApartmentId}`);
+      const targetApartment = apartments.find(apt => apt.id === expense.chargedApartmentId);
+      if (!targetApartment) {
+        this.logger.warn(`Direct charge apartment ${expense.chargedApartmentId} not found for expense ${expense.id}`);
+        return;
+      }
+
+      const charge = apartmentCharges.get(expense.chargedApartmentId);
+      if (!charge) {
+        this.logger.warn(`No charge record for apartment ${expense.chargedApartmentId}`);
+        return;
+      }
+
+      // Charge 100% to the specified apartment
+      const breakdownItem: ExpenseBreakdownItemDto = {
+        expenseId: expense.id,
+        categoryName: expense.categoryName,
+        description: expense.description,
+        totalAmount: expense.amount,
+        distributionMethod: 'DIRECT_CHARGE' as any,
+        sharePercentage: 100,
+        calculatedAmount: expense.amount,
+        finalAmount: expense.amount,
+        roundingAdjustment: 0,
+        vatAmount: expense.vatPercentage ? expense.amount * (expense.vatPercentage / 100) : undefined,
+      };
+
+      charge.expenses.push(breakdownItem);
+      this.logger.log(`Direct charge applied: ${expense.amount} to apartment ${targetApartment.number}`);
+      return;
+    }
+
+    this.logger.log(`Distributing expense ${expense.id} by shares`);
     // Determine which apartments to charge
     let targetApartments = apartments;
     if (expense.includedApartmentIds && expense.includedApartmentIds.length > 0) {

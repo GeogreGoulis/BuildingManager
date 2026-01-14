@@ -8,7 +8,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, ShareType } from '@prisma/client';
 
 export class CreateExpenseDto {
   @IsUUID()
@@ -47,6 +47,18 @@ export class CreateExpenseDto {
   @IsEnum(PaymentMethod)
   @IsOptional()
   paymentMethod?: PaymentMethod;
+
+  @IsEnum(ShareType)
+  @IsOptional()
+  shareType?: ShareType;
+
+  @IsBoolean()
+  @IsOptional()
+  isDirectCharge?: boolean;
+
+  @IsUUID()
+  @IsOptional()
+  chargedApartmentId?: string;
 
   @IsString()
   @IsOptional()
